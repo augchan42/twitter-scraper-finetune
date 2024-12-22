@@ -29,7 +29,11 @@ class TwitterPipeline {
     this.dataOrganizer = new DataOrganizer("pipeline", username);
     this.paths = this.dataOrganizer.getPaths();
     this.tweetFilter = new TweetFilter();
-    this.twitterCrawlAPI = new TwitterCrawlAPI(username, process.env.RAPIDAPI_KEY);
+    this.twitterCrawlAPI = new TwitterCrawlAPI(
+      username,
+      process.env.RAPIDAPI_KEY,
+      this.dataOrganizer
+    );
 
     // Update cookie path to be in top-level cookies directory
     this.paths.cookies = path.join(
@@ -320,11 +324,12 @@ class TwitterPipeline {
     await this.randomDelay(delay, delay * 1.1);
   }
 
-  processTweetData(tweet) {
+  async processTweetData(tweet) {
     try {
       if (!tweet || !tweet.id) return null;
 
       let timestamp = tweet.timestamp;
+
       if (!timestamp) {
         timestamp = tweet.timeParsed?.getTime();
       }
@@ -337,6 +342,26 @@ class TwitterPipeline {
         Logger.warn(`⚠️  Invalid timestamp for tweet ${tweet.id}`);
         return null;
       }
+
+      let text = "";
+      // Get full text with tweet before September 29, 2022 and tweet text length >= 140
+      // https://developer.x.com/en/docs/x-api/tweets/search/introduction
+      const sep292022 = new Date("2022-09-29T00:00:00.000Z").getTime();
+      if (timestamp < sep292022 && tweet.text.length >= 140) {
+        text = await this.twitterCrawlAPI.fallbackGetFullTextTweet(
+          this.username,
+          tweet.id
+        );
+        if (!text) {
+          text = tweet.text;
+        }
+      } else if (tweet.text.length == 280) {
+        text = await this.twitterCrawlAPI.getFullTextTweet(tweet.id);
+      } else {
+        text = tweet.text;
+      }
+
+      text = text ? text.trim() : tweet.text;
 
       const tweetDate = new Date(timestamp);
       if (
@@ -354,7 +379,7 @@ class TwitterPipeline {
 
       return {
         id: tweet.id,
-        text: tweet.text,
+        text,
         username: tweet.username || this.username,
         timestamp,
         createdAt: new Date(timestamp).toISOString(),
@@ -507,9 +532,7 @@ class TwitterPipeline {
 
         for await (const tweet of searchResults) {
           if (tweet && !allTweets.has(tweet.id)) {
-            tweet.text = await this.twitterCrawlAPI.getFullTextTweet(tweet.id);
-
-            const processedTweet = this.processTweetData(tweet);
+            const processedTweet = await this.processTweetData(tweet);
             if (processedTweet) {
               allTweets.set(tweet.id, processedTweet);
 
@@ -553,11 +576,7 @@ class TwitterPipeline {
 
             fallbackTweets.forEach(async (tweet) => {
               if (!allTweets.has(tweet.id)) {
-                tweet.text = await this.twitterCrawlAPI.getFullTextTweet(
-                  tweet.id
-                );
-
-                const processedTweet = this.processTweetData(tweet);
+                const processedTweet = await this.processTweetData(tweet);
                 if (processedTweet) {
                   allTweets.set(tweet.id, processedTweet);
                   this.stats.fallbackUsed = true;
@@ -584,9 +603,7 @@ class TwitterPipeline {
 
           fallbackTweets.forEach(async (tweet) => {
             if (!allTweets.has(tweet.id)) {
-              tweet.text = await this.twitterCrawlAPI.getFullTextTweet(tweet.id);
-
-              const processedTweet = this.processTweetData(tweet);
+              const processedTweet = await this.processTweetData(tweet);
               if (processedTweet) {
                 allTweets.set(tweet.id, processedTweet);
                 newTweetsCount++;

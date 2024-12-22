@@ -2,15 +2,25 @@
 import Logger from "./Logger.js";
 import fetch from "node-fetch";
 import DataOrganizer from "./DataOrganizer.js";
+import puppeteer from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import AdblockerPlugin from "puppeteer-extra-plugin-adblocker";
 
 class TwitterCrawlAPI {
-  constructor(username, apiKey) {
+  constructor(username, apiKey, dataOrganizer) {
     this.username = username;
     this.apiKey = apiKey;
     this.baseUrl = process.env.RAPIDAPI_URL;
-    this.host = new URL(`${this.baseUrl}`).host;
-    this.dataOrganizer = new DataOrganizer("pipeline", username); // Initialize DataOrganizer
+    this.headers = {
+      "x-rapidapi-host": new URL(`${this.baseUrl}`).host,
+      "x-rapidapi-key": this.apiKey,
+    };
+    this.dataOrganizer =
+      dataOrganizer || new DataOrganizer("pipeline", username); // Initialize DataOrganizer
     this.paths = this.dataOrganizer.getPaths();
+    // Configure puppeteer stealth once
+    puppeteer.use(StealthPlugin());
+    puppeteer.use(AdblockerPlugin({ blockTrackers: true }));
   }
 
   async getUserId() {
@@ -18,10 +28,7 @@ class TwitterCrawlAPI {
     url.searchParams.set("username", this.username.toLocaleLowerCase());
 
     const response = await fetch(url, {
-      headers: {
-        "x-rapidapi-host": this.host,
-        "x-rapidapi-key": this.apiKey,
-      },
+      headers: this.headers,
     });
 
     if (!response.ok) {
@@ -40,51 +47,35 @@ class TwitterCrawlAPI {
 
   async collectTweets() {
     try {
-      let allTweets = [];
-      let bottomCursor = null;
-
-      const { userId, totalTweets } = await this.getUserId();
-      console.log(`User ID: ${userId} - Total Tweets: ${totalTweets}`);
+      const { userId, totalTweets: totalExpectedTweets } =
+        await this.getUserId();
+      console.log(`User ID: ${userId} - Total Tweets: ${totalExpectedTweets}`);
 
       if (!userId) {
         Logger.error(`❌ User ID not found for username: ${this.username}`);
         return;
       }
 
+      const allTweets = await this.searchTweets(
+        this.username,
+        totalExpectedTweets
+      );
+
+      let processedTweets = [];
       let count = 0;
-      const step = 20;
-      do {
-        const url = new URL(`${this.baseUrl}/user-tweets`);
-        url.searchParams.set("user", userId);
-        url.searchParams.set("count", step);
-        if (bottomCursor) {
-          url.searchParams.set("cursor", bottomCursor);
+      for (const tweet of allTweets) {
+        count++;
+        const processedTweet = await this.processTweetData(tweet);
+        processedTweets.push(processedTweet);
+        if (count % 100 === 0) {
+          const completion = ((count / allTweets.length) * 100).toFixed(1);
+          Logger.info(
+            `📊 Progress: ${count.toLocaleString()} unique tweets (${completion}%)`
+          );
         }
-
-        const response = await fetch(url, {
-          headers: {
-            "x-rapidapi-host": this.host,
-            "x-rapidapi-key": this.apiKey,
-          },
-        });
-
-        if (!response.ok) {
-          const errorData = await response.text(); // Capture error response body
-          const errorMessage = `API request failed with status ${response.status}: ${errorData}`;
-          throw new Error(errorMessage); // Include error details in the error message
-        }
-
-        const jsonData = await response.json();
-        const tweets = this.extractTweetsFromResponse(jsonData);
-        allTweets = allTweets.concat(tweets);
-        bottomCursor = jsonData?.cursor?.bottom;
-
-        count += step;
-        console.log(`Collected ${count}/${totalTweets} for @${this.username}`);
-      } while (totalTweets > count);
-
-      const processedTweets = allTweets
-        .map(async (tweet) => await this.processTweetData(tweet))
+      }
+      processedTweets = processedTweets
+        .sort((a, b) => b.timestamp - a.timestamp)
         .filter((tweet) => tweet !== null);
 
       // Save the processed tweets to the raw data directory
@@ -133,7 +124,22 @@ class TwitterCrawlAPI {
   async processTweetData(tweet) {
     if (!tweet || !tweet.rest_id) return null; //Important
     const legacyTweet = tweet.legacy;
-    const full_text = await this.getFullTextTweet(legacyTweet.rest_id);
+    let full_text = "";
+
+    // Check if the tweet is a note_tweet
+    if (
+      !tweet.note_tweet?.note_tweet_results?.result?.text &&
+      legacyTweet.display_text_range[1] == 280
+    ) {
+      full_text = await this.fallbackGetFullTextTweet(
+        this.username,
+        tweet.rest_id
+      );
+    } else if (tweet.note_tweet?.note_tweet_results?.result?.text) {
+      full_text = tweet.note_tweet?.note_tweet_results?.result?.text;
+    } else {
+      full_text = legacyTweet.full_text;
+    }
 
     try {
       const createdAt = new Date(legacyTweet.created_at);
@@ -181,13 +187,14 @@ class TwitterCrawlAPI {
       // Construct the URL for the Twitter API request
       const url = new URL(`${this.baseUrl}/tweet`);
       url.searchParams.set("pid", tweetId);
+      // Log the constructed URL
+      console.log(
+        `Fetching tweet details for tweetId: ${tweetId}, url: ${url}`
+      );
 
       // Fetch the tweet data from the Twitter API
       const response = await fetch(url, {
-        headers: {
-          "x-rapidapi-host": this.host,
-          "x-rapidapi-key": this.apiKey,
-        },
+        headers: this.headers,
       });
 
       // Check for errors in the response
@@ -211,6 +218,131 @@ class TwitterCrawlAPI {
     } catch (error) {
       // Log any errors encountered while fetching the tweet
       console.error("Error fetching tweet details:", error);
+    }
+  }
+
+  async getUserTweets(userId, totalExpectedTweets) {
+    try {
+      let count = 0;
+      const limit = 20;
+      let bottomCursor = null;
+      let allTweets = [];
+
+      do {
+        const url = new URL(`${this.baseUrl}/user-tweets`);
+        url.searchParams.set("user", userId);
+        url.searchParams.set("count", limit);
+        if (bottomCursor) {
+          url.searchParams.set("cursor", bottomCursor);
+        }
+
+        const response = await fetch(url, {
+          headers: this.headers,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.text(); // Capture error response body
+          const errorMessage = `API request failed with status ${response.status}: ${errorData}`;
+          throw new Error(errorMessage); // Include error details in the error message
+        }
+
+        const jsonData = await response.json();
+
+        const tweets = this.extractTweetsFromResponse(jsonData);
+        allTweets = allTweets.concat(tweets);
+        bottomCursor = jsonData?.cursor?.bottom;
+        count += limit;
+      } while (totalExpectedTweets > count);
+
+      return allTweets;
+    } catch (error) {
+      console.error("Error fetching user tweets:", error);
+    }
+  }
+
+  async searchTweets(username, totalExpectedTweets) {
+    try {
+      let allTweets = [];
+      let bottomCursor = null;
+      let count = 0;
+      const limit = 20;
+
+      const url = new URL(`${this.baseUrl}/search-v2`);
+      url.searchParams.set("type", "Latest");
+      url.searchParams.set("count", limit);
+      url.searchParams.set("query", username);
+
+      do {
+        if (bottomCursor) {
+          url.searchParams.set("cursor", bottomCursor);
+        }
+
+        const response = await fetch(url, {
+          headers: this.headers,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.text(); // Capture error response body
+          const errorMessage = `API request failed with status ${response.status}: ${errorData}`;
+          throw new Error(errorMessage); // Include error details in the error message
+        }
+        const jsonData = await response.json();
+
+        if (jsonData.errors) {
+          throw new Error(
+            `API request failed with status ${
+              response.status
+            }: ${JSON.stringify(jsonData.errors)}`
+          );
+        }
+        const tweets = this.extractTweetsFromResponse(jsonData);
+        allTweets = allTweets.concat(tweets);
+        bottomCursor = jsonData?.cursor?.bottom;
+        count += limit;
+        if (count > totalExpectedTweets) count = totalExpectedTweets;
+        console.log(`Fetched tweets: ${count}/${totalExpectedTweets}`);
+      } while (totalExpectedTweets > count);
+
+      return allTweets;
+    } catch (error) {
+      console.error("Error searching tweets:", error);
+    }
+  }
+
+  // Fallback method to fetch detailed Tweet
+  async fallbackGetFullTextTweet(username, tweetId) {
+    const url = `https://x.com/${username}/status/${tweetId}`;
+    const browser = await puppeteer.launch({
+      headless: true, // Runs in headless mode
+      args: ["--no-sandbox", "--disable-setuid-sandbox"], // Important for VPS
+    });
+    const page = await browser.newPage();
+
+    try {
+      // Navigate to the specific tweet URL
+      await page.goto(url, { waitUntil: "networkidle2", timeout: 30_000 });
+
+      // Wait for the tweet element to load
+      await page.waitForSelector("article", { timeout: 15_000 });
+
+      // Extract the tweet details
+      const tweetData = await page.evaluate(() => {
+        const tweetElement = document.querySelector("article");
+        const textElement = tweetElement.querySelector("[lang]");
+        const authorElement = tweetElement.querySelector('div[dir="ltr"] span');
+
+        return {
+          text: textElement ? textElement.textContent.trim() : null,
+          author: authorElement ? authorElement.textContent.trim() : null,
+        };
+      });
+
+      return tweetData.text;
+    } catch (error) {
+      console.error("Error scraping tweet:", error);
+    } finally {
+      await browser.close();
+      return null;
     }
   }
 }

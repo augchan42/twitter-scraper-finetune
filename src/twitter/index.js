@@ -3,7 +3,6 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import TwitterPipeline from "./TwitterPipeline.js";
-import TwitterCrawlAPI from "./TwitterCrawlAPI.js";
 import Logger from "./Logger.js";
 
 process.on("unhandledRejection", (error) => {
@@ -20,7 +19,6 @@ const args = process.argv.slice(2);
 const username = args[0] || "eledranguyen";
 
 const pipeline = new TwitterPipeline(username);
-// const crawlRapidAPI = new TwitterCrawlAPI(username, process.env.RAPIDAPI_KEY);
 
 const cleanup = async () => {
   Logger.warn("\n🛑 Received termination signal. Cleaning up...");
@@ -39,4 +37,3 @@ process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
 
 pipeline.run().catch(() => process.exit(1));
-// crawlRapidAPI.collectTweets().catch(() => process.exit(1));
