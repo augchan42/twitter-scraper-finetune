@@ -5,6 +5,7 @@ import TweetProcessor from "./character/GenerateCharacter.js";
 import { isRawTweetsFileExists } from "./twitter/utils.js";
 import fs from "fs/promises";
 import dotenv from "dotenv";
+import cors from "cors";
 dotenv.config();
 
 const app = express();
