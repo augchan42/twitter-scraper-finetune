@@ -46,7 +46,7 @@ app.post("/api/characters", async (req, res) => {
     "utf-8"
   );
 
-  res.json({ characterData });
+  res.json({ characterData: JSON.parse(characterData) });
 });
 
 app.get("/api/characters/:username", async (req, res) => {
@@ -54,7 +54,7 @@ app.get("/api/characters/:username", async (req, res) => {
   const pathFile = `characters/${username}.json`;
   if (await isRawTweetsFileExists(pathFile)) {
     const characterData = await fs.readFile(pathFile, "utf-8");
-    res.json({ characterData });
+    res.json({ characterData: JSON.parse(characterData) });
   } else {
     res.status(404).send("Character not found");
   }
