@@ -74,6 +74,14 @@ Add `express` Server
 - GET `/api/characters/:username` - get character data by username
 - POST `/api/characters` - scrape tweets and blogs by username
 
+```json
+{
+  "username": "pmarca", // twitter username
+  "date": "2024-12-23", // generate character from this date
+  "is_crawl": true // scrape tweets and blogs
+}
+```
+
 ### Collect Tweets and Blogs by using CLI
 
 #### Twitter Collection
