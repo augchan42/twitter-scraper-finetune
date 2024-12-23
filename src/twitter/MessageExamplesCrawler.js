@@ -109,28 +109,32 @@ class MessageExamplesCrawler {
             ) {
                 break;
             }
-            const tweetText =
-                tweetList[i]["item"]["itemContent"]["tweet_results"]["result"][
-                    "legacy"
-                ]["full_text"];
+            try {
+                const tweetText =
+                    tweetList[i]["item"]["itemContent"]["tweet_results"][
+                        "result"
+                    ]["legacy"]["full_text"];
 
-            const tweetUser =
-                tweetList[i]["item"]["itemContent"]["tweet_results"]["result"][
-                    "legacy"
-                ]["user_id_str"] == this.userId
-                    ? this.username
-                    : "user" +
-                      tweetList[i]["item"]["itemContent"]["tweet_results"][
-                          "result"
-                      ]["legacy"]["user_id_str"];
+                const tweetUser =
+                    tweetList[i]["item"]["itemContent"]["tweet_results"][
+                        "result"
+                    ]["legacy"]["user_id_str"] == this.userId
+                        ? this.username
+                        : "user" +
+                          tweetList[i]["item"]["itemContent"]["tweet_results"][
+                              "result"
+                          ]["legacy"]["user_id_str"];
 
-            // add the tweet to the message example
-            messageExample.push({
-                user: "{{" + tweetUser + "}}",
-                content: {
-                    text: tweetText,
-                },
-            });
+                // add the tweet to the message example
+                messageExample.push({
+                    user: "{{" + tweetUser + "}}",
+                    content: {
+                        text: tweetText,
+                    },
+                });
+            } catch (error) {
+                console.error("Error processing tweet:", error);
+            }
         }
 
         return messageExample;
@@ -139,47 +143,54 @@ class MessageExamplesCrawler {
     processQuotedTweet(quotedTweet) {
         const messageExample = [];
 
-        // get the quoted tweet information
-        const quotedTweetText =
-            quotedTweet["content"]["itemContent"]["tweet_results"]["result"][
-                "quoted_status_result"
-            ]["result"]["legacy"]["full_text"];
+        try {
+            // get the quoted tweet information
+            const quotedTweetText =
+                quotedTweet["content"]["itemContent"]["tweet_results"][
+                    "result"
+                ]["quoted_status_result"]["result"]["legacy"]["full_text"];
 
-        const quotedUser =
-            quotedTweet["content"]["itemContent"]["tweet_results"]["result"][
-                "quoted_status_result"
-            ]["result"]["legacy"]["user_id_str"] == this.userId
-                ? this.username
+            const quotedUser =
+                quotedTweet["content"]["itemContent"]["tweet_results"][
+                    "result"
+                ]["quoted_status_result"]["result"]["legacy"]["user_id_str"] ==
+                this.userId
+                    ? this.username
+                    : quotedTweet["content"]["itemContent"]["tweet_results"][
+                          "result"
+                      ]["quoted_status_result"]["result"]["legacy"][
+                          "user_id_str"
+                      ];
+
+            // add the quoted tweet to the message example
+            messageExample.push({
+                user: "{{user" + quotedUser + "}}",
+                content: {
+                    text: quotedTweetText,
+                },
+            });
+
+            // get the post information
+            const postText = quotedTweet["content"]["itemContent"][
+                "tweet_results"
+            ]["result"]["note_tweet"]
+                ? quotedTweet["content"]["itemContent"]["tweet_results"][
+                      "result"
+                  ]["note_tweet"]["note_tweet_results"]["result"]["text"]
                 : quotedTweet["content"]["itemContent"]["tweet_results"][
                       "result"
-                  ]["quoted_status_result"]["result"]["legacy"]["user_id_str"];
+                  ]["legacy"]["full_text"];
 
-        // add the quoted tweet to the message example
-        messageExample.push({
-            user: "{{user" + quotedUser + "}}",
-            content: {
-                text: quotedTweetText,
-            },
-        });
-
-        // get the post information
-        const postText = quotedTweet["content"]["itemContent"]["tweet_results"][
-            "result"
-        ]["note_tweet"]
-            ? quotedTweet["content"]["itemContent"]["tweet_results"]["result"][
-                  "note_tweet"
-              ]["note_tweet_results"]["result"]["text"]
-            : quotedTweet["content"]["itemContent"]["tweet_results"]["result"][
-                  "legacy"
-              ]["full_text"];
-
-        // add the post content to the message example
-        messageExample.push({
-            user: "{{" + this.username + "}}",
-            content: {
-                text: postText,
-            },
-        });
+            // add the post content to the message example
+            messageExample.push({
+                user: "{{" + this.username + "}}",
+                content: {
+                    text: postText,
+                },
+            });
+        } catch (error) {
+            console.error("Error processing quoted tweet:", error);
+        }
 
         return messageExample;
     }
