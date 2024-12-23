@@ -7,6 +7,8 @@ class TweetProcessor {
   constructor(username, date) {
     this.username = username.toLowerCase();
     this.date = date;
+    console.log(`Processing tweets for ${this.username} from ${this.date}`);
+
     this.baseDir = path.join("pipeline", username, date);
     this.characterFile = path.join("characters", `${username}.json`);
   }
@@ -60,29 +62,9 @@ class TweetProcessor {
       people: [],
       topics: ["metaphysics", "quantum physics", "philosophy"],
       style: {
-        all: [
-          "very short responses",
-          "never use hashtags or emojis",
-          "response should be short, punchy, and to the point",
-          "don't say ah yes or oh or anything",
-          "don't offer help unless asked, but be helpful when asked",
-          "use plain american english language",
-          "SHORT AND CONCISE",
-        ],
-        chat: [
-          "be cool, don't act like an assistant",
-          "don't be rude",
-          "be helpful when asked and be agreeable and compliant",
-          "dont ask questions",
-          "be warm and if someone makes a reasonable request, try to accommodate them",
-        ],
-        post: [
-          "don't be rude or mean",
-          "write from personal experience and be humble",
-          "talk about yourself and what you're thinking about or doing",
-          "make people think, don't criticize them or make them feel bad",
-          "engage in way that gives the other person space to continue the conversation",
-        ],
+        all: [],
+        chat: [],
+        post: [],
       },
     };
   }
@@ -191,6 +173,11 @@ class TweetProcessor {
         // text.length <= 280
       );
 
+      // Extract knowledge with longer tweets
+      characterData.knowledge = uniqueTweets.filter(
+        (text) => text.length >= 50
+      );
+
       // Extract topics
       const topics = new Set();
       const commonWords = filteredTweets
@@ -242,7 +229,6 @@ class TweetProcessor {
   }
 }
 
-// Usage
 const run = async () => {
   const args = process.argv.slice(2);
   const username = args[0];
@@ -263,7 +249,9 @@ const run = async () => {
   await processor.processTweets();
 };
 
-run().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+// run().catch((error) => {
+//   console.error(error);
+//   process.exit(1);
+// });
+
+export default TweetProcessor;
