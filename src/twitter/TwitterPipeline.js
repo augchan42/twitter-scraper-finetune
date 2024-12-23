@@ -882,17 +882,6 @@ class TwitterPipeline {
     }
   }
 
-  async isRawTweetsFileExists() {
-    try {
-      await fs.access(this.paths.raw.tweets);
-      console.log(`${this.paths.raw.tweets} exists.`);
-      return true;
-    } catch {
-      console.log(`${this.paths.raw.tweets} does not exist.`);
-      return false;
-    }
-  }
-
   async cleanup() {
     try {
       // Cleanup main scraper

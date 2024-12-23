@@ -18,6 +18,11 @@ Pipeline for generating AI character files and training datasets by scraping pub
    # (Required) Twitter Authentication
    TWITTER_USERNAME=     # your twitter username
    TWITTER_PASSWORD=     # your twitter password
+   TWITTER_EMAIL=        # your twitter email
+
+   # RapidAPI Configuration
+   RAPIDAPI_URL=
+   RAPIDAPI_KEY=
 
    # (Optional) Blog Configuration
    BLOG_URLS_FILE=      # path to file containing blog URLs
@@ -30,9 +35,48 @@ Pipeline for generating AI character files and training datasets by scraping pub
    MAX_DELAY=           # maximum delay between requests
    ```
 
+## Update
+
+Add Rapid API to get more data.
+
+Get full text tweet:
+
+```javascript
+const twitterCrawlAPI = new TwitterCrawlAPI();
+twitterCrawlAPI.getFullTextTweet();
+```
+
+Use puppeteer to get full text tweet with tweet before Sep 29, 2022:
+
+```javascript
+twitterCrawlAPI.fallbackGetFullTextTweet();
+```
+
+Get message examples:
+
+```javascript
+this.messageExamplesCrawler = new MessageExamplesCrawler();
+messageExamplesCrawler.addExample();
+```
+
 ## Usage
 
-### Twitter Collection
+### Run as Server
+
+```bash
+npm run start
+```
+
+Add `express` Server
+
+#### APIs:
+
+- GET `/api/characters/:username` - get character data by username
+- POST `/api/characters` - scrape tweets and blogs by username
+
+### Collect Tweets and Blogs by using CLI
+
+#### Twitter Collection
 
 ```bash
 npm run twitter -- username
@@ -40,19 +84,13 @@ npm run twitter -- username
 
 Example: `npm run twitter -- pmarca`
 
-Add get full text tweet use case to `twitter/TwitterCrawlAPI.js`
-
-```javascript
-  async getFullTextTweet(tweetId) {}
-```
-
-### Blog Collection
+#### Blog Collection
 
 ```bash
 npm run blog
 ```
 
-### Generate Character
+#### Generate Character
 
 ```bash
 npm run character -- username
@@ -60,19 +98,19 @@ npm run character -- username
 
 Example: `npm run character -- pmarca`
 
-### Finetune
+#### Finetune
 
 ```bash
 npm run finetune
 ```
 
-### Finetune (with test)
+#### Finetune (with test)
 
 ```bash
 npm run finetune:test
 ```
 
-### Generate Virtuals Character Card
+#### Generate Virtuals Character Card
 
 https://whitepaper.virtuals.io/developer-documents/agent-contribution/contribute-to-cognitive-core#character-card-and-goal-samples
 
@@ -85,5 +123,6 @@ npm run generate-virtuals -- username date
 Example: `npm run generate-virtuals -- pmarca 2024-11-29`
 Example without date: `npm run generate-virtuals -- pmarca`
 
-The generated character file will be in the `pipeline/[username]/[date]/character/character.json` directory.
+The generated character file will be in the `characters/[username].json` directory. Edit `clients` and `modelProvider` fields to match your needs.
+
 The generated tweet dataset file will be in `pipeline/[username]/[date]/raw/tweets.json`.

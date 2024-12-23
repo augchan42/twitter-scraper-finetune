@@ -1,6 +1,7 @@
 // // utils.js
 // import fs from 'fs';
 // import Logger from './Logger.js';
+import fs from "fs/promises";
 
 // export async function loadCookies(cookiesPath) {
 //   try {
@@ -22,3 +23,14 @@
 //     Logger.error(`❌ Error saving cookies: ${error.message}`);
 //   }
 // }
+
+export async function isRawTweetsFileExists(pathFile) {
+  try {
+    await fs.access(pathFile);
+    console.log(`${pathFile} exists.`);
+    return true;
+  } catch {
+    console.log(`${pathFile} does not exist.`);
+    return false;
+  }
+}

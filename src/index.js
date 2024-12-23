@@ -2,6 +2,7 @@ import express from "express";
 import bodyParser from "body-parser";
 import TwitterPipeline from "./twitter/TwitterPipeline.js";
 import TweetProcessor from "./character/GenerateCharacter.js";
+import { isRawTweetsFileExists } from "./twitter/utils.js";
 import fs from "fs/promises";
 import dotenv from "dotenv";
 dotenv.config();
@@ -19,22 +20,23 @@ app.get("/", (req, res) => {
 // Define additional routes
 app.post("/api/characters", async (req, res) => {
   const data = req.body;
-  const { username, date } = data;
+  const { username, date, is_crawl } = data;
   console.log(`Received username: ${username}`);
   const pipeline = new TwitterPipeline(username);
-  if (await pipeline.isRawTweetsFileExists()) {
+  if ((await isRawTweetsFileExists(pipeline.paths.raw.tweets)) && !is_crawl) {
     console.log(`Raw tweets for ${username} already exist`);
   } else {
     console.log(`Downloading raw tweets for ${username}`);
     await pipeline.run();
-  }
-  console.log(`Processing tweets for ${username} from ${date}`);
-  const tweetProcessor = new TweetProcessor(username, date);
 
-  // Generate character
-  await tweetProcessor.processTweets(
-    pipeline.messageExamplesCrawler.messageExamples
-  );
+    console.log(`Processing tweets for ${username} from ${date}`);
+    const tweetProcessor = new TweetProcessor(username, date);
+    // Generate character
+    await tweetProcessor.processTweets(
+      pipeline.messageExamplesCrawler.messageExamples
+    );
+  }
+
   const characterData = await fs.readFile(
     `characters/${username}.json`,
     "utf-8"
@@ -45,12 +47,13 @@ app.post("/api/characters", async (req, res) => {
 
 app.get("/api/characters/:username", async (req, res) => {
   const username = req.params.username;
-  const characterData = await fs.readFile(
-    `characters/${username}.json`,
-    "utf-8"
-  );
-
-  res.json({ characterData });
+  const pathFile = `characters/${username}.json`;
+  if (await isRawTweetsFileExists(pathFile)) {
+    const characterData = await fs.readFile(pathFile, "utf-8");
+    res.json({ characterData });
+  } else {
+    res.status(404).send("Character not found");
+  }
 });
 
 // Start the server

@@ -26,7 +26,7 @@ class TweetProcessor {
       name: this.username,
       plugins: [],
       clients: [],
-      modelProvider: "anthropic",
+      modelProvider: "google",
       settings: {
         secrets: {},
         voice: {
