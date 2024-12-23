@@ -12,6 +12,9 @@ const PORT = process.env.PORT || 3000;
 // Use middleware to parse JSON
 app.use(bodyParser.json());
 
+// Enable CORS for all routes
+app.use(cors());
+
 // Set up a basic route
 app.get("/", (req, res) => {
   res.send("Hello, World! This is your Express server.");
