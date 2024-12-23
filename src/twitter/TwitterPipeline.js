@@ -9,6 +9,7 @@ import Logger from "./Logger.js";
 import DataOrganizer from "./DataOrganizer.js";
 import TweetFilter from "./TweetFilter.js";
 import TwitterCrawlAPI from "./TwitterCrawlAPI.js";
+import MessageExamplesCrawler from "./MessageExamplesCrawler.js";
 
 // agent-twitter-client
 import { Scraper, SearchMode } from "agent-twitter-client";
@@ -363,6 +364,9 @@ class TwitterPipeline {
 
       text = text ? text.trim() : tweet.text;
 
+      // collect message examples
+      await this.messageExamplesCrawler.addExample(tweet.id);
+
       const tweetDate = new Date(timestamp);
       if (
         !this.stats.oldestTweetDate ||
@@ -510,6 +514,12 @@ class TwitterPipeline {
     try {
       const profile = await scraper.getProfile(this.username);
       const totalExpectedTweets = profile.tweetsCount;
+      const userId = profile.userId;
+      this.messageExamplesCrawler = new MessageExamplesCrawler(
+        this.username,
+        userId,
+        process.env.RAPIDAPI_KEY
+      );
 
       Logger.info(
         `📊 Found ${chalk.bold(

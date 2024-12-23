@@ -114,7 +114,7 @@ class TweetProcessor {
     return tweets;
   }
 
-  async processTweets() {
+  async processTweets(messageExamples) {
     try {
       console.log(
         `Processing tweets for ${this.username} from date ${this.date}`
@@ -172,6 +172,11 @@ class TweetProcessor {
         (text) => text.length >= 20 //&&
         // text.length <= 280
       );
+
+      // Extract message examples
+      if (messageExamples) {
+        characterData.messageExamples = messageExamples;
+      }
 
       // Extract knowledge with longer tweets
       characterData.knowledge = uniqueTweets.filter(

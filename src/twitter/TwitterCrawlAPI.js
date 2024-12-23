@@ -57,8 +57,12 @@ class TwitterCrawlAPI {
         return;
       }
 
-      // when userId is readt, init the MessageExamplesCrawler
-      this.messageExamplesCrawler = new MessageExamplesCrawler(this.username, userId, this.apiKey);
+      // when userId is read, init the MessageExamplesCrawler
+      this.messageExamplesCrawler = new MessageExamplesCrawler(
+        this.username,
+        userId,
+        this.apiKey
+      );
 
       const allTweets = await this.searchTweets(
         this.username,
@@ -83,10 +87,10 @@ class TwitterCrawlAPI {
         .filter((tweet) => tweet !== null);
 
       // TODO: Save the message examples to the raw data directory
-      // this.messageExamplesCrawler.collectedMessageExamples();
+      messageExample = this.messageExamplesCrawler.collectedMessageExamples();
 
       // Save the processed tweets to the raw data directory
-      await this.dataOrganizer.saveTweets(processedTweets);
+      // await this.dataOrganizer.saveTweets(processedTweets);
       return processedTweets;
     } catch (error) {
       Logger.error(`Failed to collect tweets: ${error.message}`);
@@ -147,9 +151,6 @@ class TwitterCrawlAPI {
     } else {
       full_text = legacyTweet.full_text;
     }
-
-    // collect message examples
-    this.messageExamplesCrawler.addExample(tweet.rest_id);
 
     try {
       const createdAt = new Date(legacyTweet.created_at);

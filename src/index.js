@@ -22,16 +22,29 @@ app.post("/api/characters", async (req, res) => {
   const { username, date } = data;
   console.log(`Received username: ${username}`);
   const pipeline = new TwitterPipeline(username);
-  if (pipeline.isRawTweetsFileExists()) {
+  if (await pipeline.isRawTweetsFileExists()) {
     console.log(`Raw tweets for ${username} already exist`);
   } else {
+    console.log(`Downloading raw tweets for ${username}`);
     await pipeline.run();
   }
   console.log(`Processing tweets for ${username} from ${date}`);
   const tweetProcessor = new TweetProcessor(username, date);
 
   // Generate character
-  await tweetProcessor.processTweets();
+  await tweetProcessor.processTweets(
+    pipeline.messageExamplesCrawler.messageExamples
+  );
+  const characterData = await fs.readFile(
+    `characters/${username}.json`,
+    "utf-8"
+  );
+
+  res.json({ characterData });
+});
+
+app.get("/api/characters/:username", async (req, res) => {
+  const username = req.params.username;
   const characterData = await fs.readFile(
     `characters/${username}.json`,
     "utf-8"
