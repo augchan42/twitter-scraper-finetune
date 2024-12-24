@@ -4,6 +4,7 @@ on:
     branches:
       - develop
       - main
+      - feat
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -45,6 +46,7 @@ jobs:
           echo REPO_MANIFEST_BRANCH=main >> $GITHUB_ENV
           echo REPO_MANIFEST_ENV_DEV=./k8s-dev/sqrai >> $GITHUB_ENV
           echo REPO_MANIFEST_ENV_MAIN=./k8s-prod/sqrai >> $GITHUB_ENV
+          echo REPO_MANIFEST_ENV_FEAT=./k8s-feat/sqrai >> $GITHUB_ENV
           echo REPO_MANIFEST_TAG_IMAGE=image_sqrai_twitter_scraper >> $GITHUB_ENV
       - name: Update manifest
         env:
