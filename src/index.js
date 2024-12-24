@@ -28,12 +28,16 @@ console.log = (...args) => {
 app.get("/logs", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
 
   // Override console.log to send logs via SSE
   const originalLog = console.log;
   console.log = (...args) => {
     originalLog(...args);
-    res.write(`data: ${args.join(" ")}\n\n`);
+    // Check args start with 📊 Progress:
+    if (args[0].startsWith("📊 Progress:")) {
+      res.write(`data: ${args.join(" ")}\n\n`);
+    }
   };
 
   // Close connection on client disconnect
