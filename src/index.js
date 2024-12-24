@@ -15,7 +15,7 @@ app.use(bodyParser.json());
 
 // Enable CORS for all routes
 app.use(cors());
-
+// Enable caching for all routes
 let logs = [];
 
 // Middleware to capture console logs

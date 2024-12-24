@@ -27,10 +27,10 @@ import fs from "fs/promises";
 export async function isRawTweetsFileExists(pathFile) {
   try {
     await fs.access(pathFile);
-    console.log(`${pathFile} exists.`);
+    // console.log(`${pathFile} exists.`);
     return true;
   } catch {
-    console.log(`${pathFile} does not exist.`);
+    // console.log(`${pathFile} does not exist.`);
     return false;
   }
 }
