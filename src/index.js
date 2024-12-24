@@ -34,10 +34,8 @@ app.get("/logs", (req, res) => {
   const originalLog = console.log;
   console.log = (...args) => {
     // Check args start with 📊 Progress:
-    if (args[0].startsWith("📊 Progress:")) {
-      res.write(`data: ${args.join(" ")}\n\n`);
-      originalLog(...args);
-    }
+    originalLog(...args);
+    res.write(`data: ${args.join(" ")}\n\n`);
   };
 
   // Close connection on client disconnect
