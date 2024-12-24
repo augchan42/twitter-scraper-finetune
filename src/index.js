@@ -86,7 +86,7 @@ app.get("/api/characters/:username", async (req, res) => {
     const characterData = await fs.readFile(pathFile, "utf-8");
     res.json({ characterData: JSON.parse(characterData) });
   } else {
-    res.status(404).send("Character not found");
+    // res.status(404).send("Character not found");
   }
 });
 
