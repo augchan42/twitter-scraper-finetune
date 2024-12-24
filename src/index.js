@@ -33,16 +33,16 @@ app.get("/logs", (req, res) => {
   // Override console.log to send logs via SSE
   const originalLog = console.log;
   console.log = (...args) => {
-    originalLog(...args);
     // Check args start with 📊 Progress:
     if (args[0].startsWith("📊 Progress:")) {
       res.write(`data: ${args.join(" ")}\n\n`);
+      originalLog(...args);
     }
   };
 
   // Close connection on client disconnect
   req.on("close", () => {
-    console.log("Client disconnected");
+    // console.log("Client disconnected");
     console.log = originalLog; // Restore console.log
     res.end();
   });
