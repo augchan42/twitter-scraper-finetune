@@ -16,6 +16,34 @@ app.use(bodyParser.json());
 // Enable CORS for all routes
 app.use(cors());
 
+let logs = [];
+
+// Middleware to capture console logs
+const originalLog = console.log;
+console.log = (...args) => {
+  originalLog(...args);
+  logs.push(args.join(" "));
+};
+
+app.get("/logs", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+
+  // Override console.log to send logs via SSE
+  const originalLog = console.log;
+  console.log = (...args) => {
+    originalLog(...args);
+    res.write(`data: ${args.join(" ")}\n\n`);
+  };
+
+  // Close connection on client disconnect
+  req.on("close", () => {
+    console.log("Client disconnected");
+    console.log = originalLog; // Restore console.log
+    res.end();
+  });
+});
+
 // Set up a basic route
 app.get("/", (req, res) => {
   res.send("Hello, World! This is your Express server.");
