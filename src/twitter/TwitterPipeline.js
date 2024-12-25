@@ -19,29 +19,15 @@ import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import AdblockerPlugin from "puppeteer-extra-plugin-adblocker";
 import { Cluster } from "puppeteer-cluster";
+import { redis, DEFAULT_TTL } from "../redis/redis.js";
 
 // Configure puppeteer stealth once
 puppeteer.use(StealthPlugin());
 puppeteer.use(AdblockerPlugin({ blockTrackers: true }));
 
 class TwitterPipeline {
-  constructor(username) {
-    this.username = username;
-    this.dataOrganizer = new DataOrganizer("pipeline", username);
-    this.paths = this.dataOrganizer.getPaths();
+  constructor() {
     this.tweetFilter = new TweetFilter();
-    this.twitterCrawlAPI = new TwitterCrawlAPI(
-      username,
-      process.env.RAPIDAPI_KEY,
-      this.dataOrganizer
-    );
-
-    // Update cookie path to be in top-level cookies directory
-    this.paths.cookies = path.join(
-      process.cwd(),
-      "cookies",
-      `${process.env.TWITTER_USERNAME}_cookies.json`
-    );
 
     // Enhanced configuration with fallback handling
     this.config = {
@@ -81,6 +67,30 @@ class TwitterPipeline {
       newestTweetDate: null,
       fallbackUsed: false,
     };
+  }
+
+  async initializeOrganizer(username) {
+    if (!this.dataOrganizer) {
+      this.dataOrganizer = new DataOrganizer("pipeline", username);
+    }
+    this.paths = this.dataOrganizer.getPaths();
+
+    // Update cookie path to be in top-level cookies directory
+    this.paths.cookies = path.join(
+      process.cwd(),
+      "cookies",
+      `${process.env.TWITTER_USERNAME}_cookies.json`
+    );
+  }
+
+  async initializeCrawler(username) {
+    if (!this.twitterCrawlAPI) {
+      this.twitterCrawlAPI = new TwitterCrawlAPI(
+        username,
+        process.env.RAPIDAPI_KEY,
+        this.dataOrganizer
+      );
+    }
   }
 
   async initializeFallback() {
@@ -325,7 +335,7 @@ class TwitterPipeline {
     await this.randomDelay(delay, delay * 1.1);
   }
 
-  async processTweetData(tweet) {
+  async processTweetData(tweet, username) {
     try {
       if (!tweet || !tweet.id) return null;
 
@@ -350,7 +360,7 @@ class TwitterPipeline {
       const sep292022 = new Date("2022-09-29T00:00:00.000Z").getTime();
       if (timestamp < sep292022 && tweet.text.length >= 140) {
         text = await this.twitterCrawlAPI.fallbackGetFullTextTweet(
-          this.username,
+          username,
           tweet.id
         );
         if (!text) {
@@ -384,7 +394,7 @@ class TwitterPipeline {
       return {
         id: tweet.id,
         text,
-        username: tweet.username || this.username,
+        username: tweet.username || username,
         timestamp,
         createdAt: new Date(timestamp).toISOString(),
         isReply: Boolean(tweet.isReply),
@@ -510,13 +520,31 @@ class TwitterPipeline {
     return Array.from(tweets);
   }
 
-  async collectTweets(scraper) {
+  async collectTweets(scraper, username, taskId) {
     try {
-      const profile = await scraper.getProfile(this.username);
+      const profile = await scraper.getProfile(username);
       const totalExpectedTweets = profile.tweetsCount;
       const userId = profile.userId;
+      const updatedTaskProgress = {
+        progress: 0,
+        username,
+        status: "IN_PROGRESS",
+        totalExpectedTweets,
+      };
+      redis.set(
+        taskId,
+        JSON.stringify(updatedTaskProgress),
+        "EX",
+        DEFAULT_TTL,
+        (err) => {
+          if (err) {
+            console.error("Error saving task to cache:", err);
+          }
+        }
+      );
+
       this.messageExamplesCrawler = new MessageExamplesCrawler(
-        this.username,
+        username,
         userId,
         process.env.RAPIDAPI_KEY
       );
@@ -524,7 +552,7 @@ class TwitterPipeline {
       Logger.info(
         `📊 Found ${chalk.bold(
           totalExpectedTweets.toLocaleString()
-        )} total tweets for @${this.username}`
+        )} total tweets for @${username}`
       );
 
       const allTweets = new Map();
@@ -535,7 +563,7 @@ class TwitterPipeline {
       // Try main collection first
       try {
         const searchResults = scraper.searchTweets(
-          `from:${this.username}`,
+          `from:${username}`,
           this.config.twitter.maxTweets,
           SearchMode.Latest
         );
@@ -546,13 +574,31 @@ class TwitterPipeline {
             if (processedTweet) {
               allTweets.set(tweet.id, processedTweet);
 
-              if (allTweets.size % 100 === 0) {
+              if (allTweets.size % 10 === 0) {
                 const completion = (
                   (allTweets.size / totalExpectedTweets) *
                   100
                 ).toFixed(1);
                 Logger.info(
                   `📊 Progress: ${allTweets.size.toLocaleString()} unique tweets (${completion}%)`
+                );
+                const updatedTaskProgress = {
+                  progress: completion,
+                  username,
+                  status:
+                    Number(completion) >= 100 ? "COMPLETED" : "IN_PROGRESS",
+                  totalExpectedTweets,
+                };
+                redis.set(
+                  taskId,
+                  JSON.stringify(updatedTaskProgress),
+                  "EX",
+                  DEFAULT_TTL,
+                  (err) => {
+                    if (err) {
+                      console.error("Error saving task to cache:", err);
+                    }
+                  }
                 );
 
                 if (allTweets.size === previousCount) {
@@ -581,7 +627,7 @@ class TwitterPipeline {
           ) {
             Logger.info("Switching to fallback collection...");
             const fallbackTweets = await this.collectWithFallback(
-              `from:${this.username}`
+              `from:${username}`
             );
 
             fallbackTweets.forEach(async (tweet) => {
@@ -607,7 +653,7 @@ class TwitterPipeline {
 
         try {
           const fallbackTweets = await this.collectWithFallback(
-            `from:${this.username}`
+            `from:${username}`
           );
           let newTweetsCount = 0;
 
@@ -638,6 +684,24 @@ class TwitterPipeline {
             ? ` (including ${this.stats.fallbackCount} from fallback)`
             : ""
         }`
+      );
+
+      const completedTask = {
+        progress: 100,
+        username,
+        status: "COMPLETED",
+        totalExpectedTweets,
+      };
+      redis.set(
+        taskId,
+        JSON.stringify(completedTask),
+        "EX",
+        DEFAULT_TTL,
+        (err) => {
+          if (err) {
+            console.error("Error saving task to cache:", err);
+          }
+        }
       );
 
       return Array.from(allTweets.values());
@@ -682,20 +746,20 @@ class TwitterPipeline {
     }
   }
 
-  async getProfile() {
-    const profile = await this.scraper.getProfile(this.username);
+  async getProfile(username) {
+    const profile = await this.scraper.getProfile(username);
     return profile;
   }
 
-  async run() {
+  async run(username, taskId) {
     const startTime = Date.now();
 
     console.log("\n" + chalk.bold.blue("🐦 Twitter Data Collection Pipeline"));
-    console.log(
-      chalk.bold(`Target Account: ${chalk.cyan("@" + this.username)}\n`)
-    );
+    console.log(chalk.bold(`Target Account: ${chalk.cyan("@" + username)}\n`));
 
     try {
+      this.initializeOrganizer(username);
+      this.initializeCrawler(username);
       await this.validateEnvironment();
 
       // Initialize main scraper
@@ -707,8 +771,12 @@ class TwitterPipeline {
       }
 
       // Start collection
-      Logger.startSpinner(`Collecting tweets from @${this.username}`);
-      const allTweets = await this.collectTweets(this.scraper);
+      Logger.startSpinner(`Collecting tweets from @${username}`);
+      const allTweets = await this.collectTweets(
+        this.scraper,
+        username,
+        taskId
+      );
       Logger.stopSpinner();
 
       if (allTweets.length === 0) {
