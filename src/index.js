@@ -61,7 +61,13 @@ app.post("/api/characters", async (req, res) => {
   const data = req.body;
   const { username, date, is_crawl } = data;
   const taskId = `task_${username}_${Date.now()}`; // Unique task ID
-  const taskProgress = { taskId, progress: 0, username, status: "IN_PROGRESS" };
+  const taskProgress = {
+    taskId,
+    progress: 0,
+    username,
+    status: "IN_PROGRESS",
+    totalExpectedTweets: 0,
+  };
 
   // Save task progress in redis
   // find redis key with pattern username

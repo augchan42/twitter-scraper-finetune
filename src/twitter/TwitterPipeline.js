@@ -525,6 +525,24 @@ class TwitterPipeline {
       const profile = await scraper.getProfile(username);
       const totalExpectedTweets = profile.tweetsCount;
       const userId = profile.userId;
+      const updatedTaskProgress = {
+        progress: 0,
+        username,
+        status: "IN_PROGRESS",
+        totalExpectedTweets,
+      };
+      redis.set(
+        taskId,
+        JSON.stringify(updatedTaskProgress),
+        "EX",
+        DEFAULT_TTL,
+        (err) => {
+          if (err) {
+            console.error("Error saving task to cache:", err);
+          }
+        }
+      );
+
       this.messageExamplesCrawler = new MessageExamplesCrawler(
         username,
         userId,
@@ -569,6 +587,7 @@ class TwitterPipeline {
                   username,
                   status:
                     Number(completion) >= 100 ? "COMPLETED" : "IN_PROGRESS",
+                  totalExpectedTweets,
                 };
                 redis.set(
                   taskId,
@@ -671,6 +690,7 @@ class TwitterPipeline {
         progress: 100,
         username,
         status: "COMPLETED",
+        totalExpectedTweets,
       };
       redis.set(
         taskId,
