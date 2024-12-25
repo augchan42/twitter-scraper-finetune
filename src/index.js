@@ -71,7 +71,7 @@ app.post("/api/characters", async (req, res) => {
     keys.map(async (key) => {
       const data = await redis.get(key);
       const task = JSON.parse(data);
-      if (task.status === "COMPLETED") {
+      if (task?.status === "COMPLETED") {
         console.log(`Deleting task: ${key}`);
         redis.del(key);
       }
