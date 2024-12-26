@@ -139,33 +139,6 @@ class TweetProcessor {
 
       let characterData = await this.loadCharacterData();
 
-      // Load bio from processed character file and add to character data if available
-      const characterPath = path.join(
-        this.baseDir,
-        "character",
-        "character.json"
-      );
-      console.log(`Character file path: ${characterPath}`);
-
-      try {
-        await fs.access(characterPath);
-      } catch (error) {
-        throw new Error(
-          `No processed character found for ${this.username} on ${this.date}`
-        );
-      }
-
-      const character = await fs.readFile(characterPath, "utf-8");
-      const characterJson = JSON.parse(character);
-
-      if (characterJson.bio) {
-        characterData.bio.push(characterJson.bio);
-      }
-
-      if (characterJson.description) {
-        characterData.bio.push(characterJson.description);
-      }
-
       const filteredTweets = tweets
         .filter((tweet) => {
           if (!tweet.text) {
