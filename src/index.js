@@ -6,10 +6,12 @@ import { isRawTweetsFileExists } from "./twitter/utils.js";
 import fs from "fs/promises";
 import dotenv from "dotenv";
 import cors from "cors";
+import { redis, DEFAULT_TTL } from "./common/redis.js";
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
 // Use middleware to parse JSON
 app.use(bodyParser.json());
 
@@ -17,6 +19,9 @@ app.use(bodyParser.json());
 app.use(cors());
 // Enable caching for all routes
 let logs = [];
+
+// Declare pipeline
+const pipeline = new TwitterPipeline();
 
 // Middleware to capture console logs
 const originalLog = console.log;
@@ -54,14 +59,47 @@ app.get("/", (req, res) => {
 // Define additional routes
 app.post("/api/characters", async (req, res) => {
   const data = req.body;
-  const { username, date, is_crawl } = data;
+  const { username, is_crawl } = data;
+  const date = new Date().toISOString().split("T")[0];
+  const taskId = `task_${username}_${Date.now()}`; // Unique task ID
+  const taskProgress = {
+    taskId,
+    progress: 0,
+    username,
+    status: "IN_PROGRESS",
+    totalExpectedTweets: 0,
+  };
+
+  // Save task progress in redis
+  // find redis key with pattern username
+  // if exists, delete it
+  const keys = await redis.keys(`task_${username}_*`);
+  await Promise.all(
+    keys.map(async (key) => {
+      const data = await redis.get(key);
+      const task = JSON.parse(data);
+      if (task?.status === "COMPLETED") {
+        console.log(`Deleting task: ${key}`);
+        redis.del(key);
+      }
+    })
+  );
+
+  redis
+    .set(taskId, JSON.stringify(taskProgress), "EX", DEFAULT_TTL)
+    .then(() => {
+      console.log("Task progress saved in redis");
+      res.json(taskProgress);
+    });
+
   console.log(`Received username: ${username}`);
-  const pipeline = new TwitterPipeline(username);
+  await pipeline.initializeOrganizer(username);
+  await pipeline.initializeScraper(username);
   if ((await isRawTweetsFileExists(pipeline.paths.raw.tweets)) && !is_crawl) {
     console.log(`Raw tweets for ${username} already exist`);
   } else {
     console.log(`Downloading raw tweets for ${username}`);
-    await pipeline.run();
+    await pipeline.run(username, taskId);
 
     console.log(`Processing tweets for ${username} from ${date}`);
     const tweetProcessor = new TweetProcessor(username, date);
@@ -70,13 +108,19 @@ app.post("/api/characters", async (req, res) => {
       pipeline.messageExamplesCrawler.messageExamples
     );
   }
+});
 
-  const characterData = await fs.readFile(
-    `characters/${username}.json`,
-    "utf-8"
-  );
+app.get("/api/task-progress/:taskId", async (req, res) => {
+  const taskId = req.params.taskId;
+  console.log(`Fetching task progress for task ID: ${taskId}`);
 
-  res.json({ characterData: JSON.parse(characterData) });
+  redis.get(taskId).then((taskProgress) => {
+    if (taskProgress) {
+      res.json(JSON.parse(taskProgress));
+    } else {
+      res.status(404).send("Task not found");
+    }
+  });
 });
 
 app.get("/api/characters/:username", async (req, res) => {
