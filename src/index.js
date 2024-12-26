@@ -6,7 +6,7 @@ import { isRawTweetsFileExists } from "./twitter/utils.js";
 import fs from "fs/promises";
 import dotenv from "dotenv";
 import cors from "cors";
-import { redis, DEFAULT_TTL } from "./redis/redis.js";
+import { redis, DEFAULT_TTL } from "./common/redis.js";
 dotenv.config();
 
 const app = express();
