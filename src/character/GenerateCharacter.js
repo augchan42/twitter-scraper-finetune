@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import readline from "readline";
 import { createReadStream } from "fs";
+import { KnowledgeGenerator } from "./KnowledgeGenerator.js";
 
 class TweetProcessor {
   constructor(username, date) {
@@ -11,6 +12,32 @@ class TweetProcessor {
 
     this.baseDir = path.join("pipeline", username, date);
     this.characterFile = path.join("characters", `${username}.json`);
+
+    // the data of a character
+    this.name = this.username;
+    this.plugins = [];
+    this.clients = ["direct"];
+    this.modelProvider = "google";
+    this.settings = {
+      secrets: {},
+      voice: {
+        model: "en_US-male-medium",
+      },
+    };
+    this.system = `Roleplay and generate interesting content on behalf of ${this.username}.`;
+    this.bio = ["A real human, not an AI agent"];
+    this.lore = [];
+    this.knowledge = [];
+    this.messageExamples = [];
+    this.postExamples = [];
+    this.adjectives = [];
+    this.people = [];
+    this.topics = [];
+    this.style = {
+      all: [],
+      chat: [],
+      post: [],
+    };
   }
 
   async ensureDirectoryExists(dirPath) {
@@ -23,49 +50,21 @@ class TweetProcessor {
 
   getCharacterData() {
     return {
-      name: this.username,
-      plugins: [],
-      clients: [],
-      modelProvider: "google",
-      settings: {
-        secrets: {},
-        voice: {
-          model: "en_US-hfc_female-medium",
-        },
-      },
-      system: `Roleplay and generate interesting content on behalf of ${this.username}.`,
-      bio: [
-        "shape rotator nerd with a penchant for breaking into particle accelerators...",
-      ],
-      lore: ["once spent a month living entirely in VR..."],
-      knowledge: [
-        // Will be populated based on topics and expertise detected in tweets
-      ],
-      messageExamples: [
-        [
-          {
-            user: "{{user1}}",
-            content: {
-              text: "hey can you help with me something",
-            },
-          },
-          {
-            user: this.username,
-            content: {
-              text: "i'm kinda busy but i can probably step away for a minute, whatcha need",
-            },
-          },
-        ],
-      ],
-      postExamples: [],
-      adjectives: ["funny", "intelligent", "academic", "insightful"],
-      people: [],
-      topics: ["metaphysics", "quantum physics", "philosophy"],
-      style: {
-        all: [],
-        chat: [],
-        post: [],
-      },
+      name: this.name,
+      plugins: this.plugins,
+      clients: this.clients,
+      modelProvider: this.modelProvider,
+      settings: this.settings,
+      system: this.system,
+      bio: this.bio,
+      lore: this.lore,
+      knowledge: this.knowledge,
+      messageExamples: this.messageExamples,
+      postExamples: this.postExamples,
+      adjectives: this.adjectives,
+      people: this.people,
+      topics: this.topics,
+      style: this.style,
     };
   }
 
@@ -140,6 +139,33 @@ class TweetProcessor {
 
       let characterData = await this.loadCharacterData();
 
+      // Load bio from processed character file and add to character data if available
+      const characterPath = path.join(
+        this.baseDir,
+        "character",
+        "character.json"
+      );
+      console.log(`Character file path: ${characterPath}`);
+
+      try {
+        await fs.access(characterPath);
+      } catch (error) {
+        throw new Error(
+          `No processed character found for ${this.username} on ${this.date}`
+        );
+      }
+
+      const character = await fs.readFile(characterPath, "utf-8");
+      const characterJson = JSON.parse(character);
+
+      if (characterJson.bio) {
+        characterData.bio.push(characterJson.bio);
+      }
+
+      if (characterJson.description) {
+        characterData.bio.push(characterJson.description);
+      }
+
       const filteredTweets = tweets
         .filter((tweet) => {
           if (!tweet.text) {
@@ -179,41 +205,24 @@ class TweetProcessor {
       }
 
       // Extract knowledge with longer tweets
-      characterData.knowledge = uniqueTweets.filter(
-        (text) => text.length >= 50
-      );
+      const knowledgeGenerator = new KnowledgeGenerator();
+      await knowledgeGenerator.addKnowledge(uniqueTweets);
+      characterData.knowledge = knowledgeGenerator.getKnowledge();
+
+      // Extract bio
+      characterData.bio = characterData.bio.concat(knowledgeGenerator.getBio());
+
+      // Extract lore
+      characterData.lore = knowledgeGenerator.getLore();
 
       // Extract topics
-      const topics = new Set();
-      const commonWords = filteredTweets
-        .map((tweet) => tweet.text.toLowerCase())
-        .join(" ")
-        .split(" ")
-        .filter(
-          (word) =>
-            word.length > 4 &&
-            ![
-              "https",
-              "would",
-              "could",
-              "should",
-              "their",
-              "there",
-              "about",
-            ].includes(word)
-        );
+      characterData.topics = knowledgeGenerator.getTopics();
 
-      const wordFrequency = {};
-      commonWords.forEach((word) => {
-        wordFrequency[word] = (wordFrequency[word] || 0) + 1;
-      });
+      // Extract adjectives
+      characterData.adjectives = knowledgeGenerator.getAdjectives();
 
-      Object.entries(wordFrequency)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 20)
-        .forEach(([word]) => topics.add(word));
-
-      characterData.topics = Array.from(topics);
+      // Extract style
+      characterData.style = knowledgeGenerator.getStyle();
 
       // Save updated character file
       await fs.writeFile(
