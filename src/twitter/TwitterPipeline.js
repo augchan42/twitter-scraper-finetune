@@ -798,18 +798,6 @@ class TwitterPipeline {
         100
       ).toFixed(1);
 
-      // Save to DB
-      const dataSaveDB = allTweets.map((tweet) => {
-        return {
-          tweet_id: tweet.id,
-          tweet_username: tweet.username,
-          full_text: tweet.text,
-          timestamp: tweet.timestamp,
-
-          json_data: tweet,
-        };
-      });
-
       // Display final results
       Logger.stats("📈 Collection Results", {
         "Total Tweets": allTweets.length.toLocaleString(),
