@@ -24,6 +24,9 @@ Pipeline for generating AI character files and training datasets by scraping pub
    RAPIDAPI_URL=
    RAPIDAPI_KEY=
 
+   # Google Generative AI API Key. Required for summarizing tweets.
+   GOOGLE_GENERATIVE_AI_API_KEY=
+
    # (Optional) Blog Configuration
    BLOG_URLS_FILE=      # path to file containing blog URLs
 
@@ -59,6 +62,15 @@ this.messageExamplesCrawler = new MessageExamplesCrawler();
 messageExamplesCrawler.addExample();
 ```
 
+#### Using Google Generative AI to summarize tweets
+
+```javascript
+// Extract knowledge with longer tweets
+const knowledgeGenerator = new KnowledgeGenerator();
+await knowledgeGenerator.addKnowledge(uniqueTweets);
+characterData.knowledge = knowledgeGenerator.getKnowledge();
+```
+
 ## Usage
 
 ### Run as Server
@@ -77,8 +89,7 @@ Add `express` Server
 ```json
 {
   "username": "pmarca", // twitter username
-  "date": "2024-12-23", // generate character from this date
-  "is_crawl": true // scrape tweets and blogs
+  "is_crawl": true // scrape tweets
 }
 ```
 

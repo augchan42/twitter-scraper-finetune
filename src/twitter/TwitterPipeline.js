@@ -19,7 +19,7 @@ import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import AdblockerPlugin from "puppeteer-extra-plugin-adblocker";
 import { Cluster } from "puppeteer-cluster";
-import { redis, DEFAULT_TTL } from "../redis/redis.js";
+import { redis, DEFAULT_TTL } from "../common/redis.js";
 
 // Configure puppeteer stealth once
 puppeteer.use(StealthPlugin());

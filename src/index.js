@@ -6,7 +6,7 @@ import { isRawTweetsFileExists } from "./twitter/utils.js";
 import fs from "fs/promises";
 import dotenv from "dotenv";
 import cors from "cors";
-import { redis, DEFAULT_TTL } from "./redis/redis.js";
+import { redis, DEFAULT_TTL } from "./common/redis.js";
 dotenv.config();
 
 const app = express();
@@ -59,7 +59,8 @@ app.get("/", (req, res) => {
 // Define additional routes
 app.post("/api/characters", async (req, res) => {
   const data = req.body;
-  const { username, date, is_crawl } = data;
+  const { username, is_crawl } = data;
+  const date = new Date().toISOString().split("T")[0];
   const taskId = `task_${username}_${Date.now()}`; // Unique task ID
   const taskProgress = {
     taskId,

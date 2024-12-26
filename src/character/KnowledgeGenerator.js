@@ -63,14 +63,14 @@ class KnowledgeGenerator {
           // convert the response to JSON format and fill the knowledge data
           let response = JSON.parse(rs);
           try {
-            this.knowledge = this.knowledge.push(response.knowledge);
-            this.bio = this.bio.push(response.bio);
-            this.lore = this.lore.push(response.lore);
-            this.topics = this.topics.push(response.topics);
-            this.adjectives = this.adjectives.push(response.adjectives);
-            this.style.all = this.style.all.push(response.style.all);
-            this.style.chat = this.style.chat.push(response.style.chat);
-            this.style.post = this.style.post.push(response.style.post);
+            this.knowledge = this.knowledge.concat(response.knowledge);
+            this.bio = this.bio.concat(response.bio);
+            this.lore = this.lore.concat(response.lore);
+            this.topics = this.topics.concat(response.topics);
+            this.adjectives = this.adjectives.concat(response.adjectives);
+            this.style.all = this.style.all.concat(response.style.all);
+            this.style.chat = this.style.chat.concat(response.style.chat);
+            this.style.post = this.style.post.concat(response.style.post);
           } catch (error) {
             console.error(`Error adding knowledge data: ${error.message}`);
           }
