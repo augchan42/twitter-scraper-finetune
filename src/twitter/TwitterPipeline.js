@@ -20,7 +20,6 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import AdblockerPlugin from "puppeteer-extra-plugin-adblocker";
 import { Cluster } from "puppeteer-cluster";
 import { redis, DEFAULT_TTL } from "../common/redis.js";
-import prisma from "../common/prisma.js";
 
 // Configure puppeteer stealth once
 puppeteer.use(StealthPlugin());
@@ -339,12 +338,6 @@ class TwitterPipeline {
   async processTweetData(tweet, username) {
     try {
       if (!tweet || !tweet.id) return null;
-
-      // Skip tweet if exist in database
-      const tweetExist = await prisma.tweet.findUnique({
-        where: { tweet_id: tweet.id },
-      });
-      if (tweetExist) return null;
 
       let timestamp = tweet.timestamp;
 
@@ -815,10 +808,6 @@ class TwitterPipeline {
 
           json_data: tweet,
         };
-      });
-      await prisma.tweet.createMany({
-        data: dataSaveDB,
-        skipDuplicates: true,
       });
 
       // Display final results
