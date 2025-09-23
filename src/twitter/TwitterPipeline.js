@@ -358,6 +358,7 @@ class TwitterPipeline {
       // Get full text with tweet before September 29, 2022 and tweet text length >= 140
       // https://developer.x.com/en/docs/x-api/tweets/search/introduction
       const sep292022 = new Date("2022-09-29T00:00:00.000Z").getTime();
+      const hasRapidApi = !!(process.env.RAPIDAPI_URL && process.env.RAPIDAPI_KEY);
       if (timestamp < sep292022 && tweet.text.length >= 140) {
         text = await this.twitterCrawlAPI.fallbackGetFullTextTweet(
           username,
@@ -367,7 +368,17 @@ class TwitterPipeline {
           text = tweet.text;
         }
       } else if (tweet.text.length == 280) {
-        text = await this.twitterCrawlAPI.getFullTextTweet(tweet.id);
+        if (hasRapidApi) {
+          text = await this.twitterCrawlAPI.getFullTextTweet(tweet.id);
+        } else {
+          text = await this.twitterCrawlAPI.fallbackGetFullTextTweet(
+            username,
+            tweet.id
+          );
+        }
+        if (!text) {
+          text = tweet.text;
+        }
       } else {
         text = tweet.text;
       }
@@ -375,7 +386,9 @@ class TwitterPipeline {
       text = text ? text.trim() : tweet.text;
 
       // collect message examples
-      await this.messageExamplesCrawler.addExample(tweet.id);
+      if (hasRapidApi && this.messageExamplesCrawler) {
+        await this.messageExamplesCrawler.addExample(tweet.id);
+      }
 
       const tweetDate = new Date(timestamp);
       if (
@@ -570,7 +583,7 @@ class TwitterPipeline {
 
         for await (const tweet of searchResults) {
           if (tweet && !allTweets.has(tweet.id)) {
-            const processedTweet = await this.processTweetData(tweet);
+            const processedTweet = await this.processTweetData(tweet, username);
             if (processedTweet) {
               allTweets.set(tweet.id, processedTweet);
 

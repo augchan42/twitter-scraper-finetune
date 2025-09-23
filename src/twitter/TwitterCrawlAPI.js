@@ -11,11 +11,24 @@ class TwitterCrawlAPI {
   constructor(username, apiKey, dataOrganizer) {
     this.username = username;
     this.apiKey = apiKey;
-    this.baseUrl = process.env.RAPIDAPI_URL;
-    this.headers = {
-      "x-rapidapi-host": new URL(`${this.baseUrl}`).host,
-      "x-rapidapi-key": this.apiKey,
-    };
+    const rawBaseUrl = process.env.RAPIDAPI_URL || null;
+    let parsedHost = null;
+    if (rawBaseUrl) {
+      try {
+        parsedHost = new URL(rawBaseUrl).host;
+        this.baseUrl = rawBaseUrl;
+      } catch (_) {
+        this.baseUrl = null;
+      }
+    } else {
+      this.baseUrl = null;
+    }
+    this.headers = this.baseUrl
+      ? {
+          "x-rapidapi-host": parsedHost,
+          "x-rapidapi-key": this.apiKey,
+        }
+      : {};
     this.dataOrganizer =
       dataOrganizer || new DataOrganizer("pipeline", username); // Initialize DataOrganizer
     this.paths = this.dataOrganizer.getPaths();
@@ -25,6 +38,11 @@ class TwitterCrawlAPI {
   }
 
   async getUserId() {
+    if (!this.baseUrl) {
+      throw new Error(
+        "RAPIDAPI_URL is not configured. Set RAPIDAPI_URL and RAPIDAPI_KEY in your .env to use RapidAPI endpoints."
+      );
+    }
     const url = new URL(`${this.baseUrl}/user`);
     url.searchParams.set("username", this.username.toLocaleLowerCase());
 
@@ -123,13 +141,13 @@ class TwitterCrawlAPI {
                 entry.content.itemContent.tweet_results.result
                   .retweeted_status_result.result
               );
-              continue;
             }
           }
         }
       }
     }
-    return extractedTweets.filter((tweet) => tweet.legacy);
+
+    return extractedTweets;
   }
 
   async processTweetData(tweet) {
@@ -188,51 +206,29 @@ class TwitterCrawlAPI {
     }
   }
 
-  /**
-   * Retrieves the full text of a tweet from the Twitter API.
-   * @param {string} tweetId - The ID of the tweet to retrieve.
-   * @returns {Promise<string>} The full text of the tweet.
-   */
   async getFullTextTweet(tweetId) {
-    try {
-      // Construct the URL for the Twitter API request
-      const url = new URL(`${this.baseUrl}/tweet`);
-      url.searchParams.set("pid", tweetId);
-      // Log the constructed URL
-      console.log(
-        `Fetching tweet details for tweetId: ${tweetId}, url: ${url}`
+    if (!this.baseUrl) {
+      throw new Error(
+        "RAPIDAPI_URL is not configured. Set RAPIDAPI_URL and RAPIDAPI_KEY in your .env to use RapidAPI endpoints."
       );
-
-      // Fetch the tweet data from the Twitter API
-      const response = await fetch(url, {
-        headers: this.headers,
-      });
-
-      // Check for errors in the response
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-
-      // Parse the JSON response
-      const jsonData = await response.json();
-
-      // Extract the full text of the tweet from the response
-      const full_text =
-        jsonData.tweet?.note_tweet?.note_tweet_results?.result?.text ||
-        jsonData.tweet.full_text;
-
-      // Log the retrieved full text
-      console.log(`\ntweetId: ${tweetId}, full_text: ${full_text}`);
-
-      // Return the full text of the tweet
-      return full_text;
-    } catch (error) {
-      // Log any errors encountered while fetching the tweet
-      console.error("Error fetching tweet details:", error);
     }
+    const url = new URL(`${this.baseUrl}/tweet/${tweetId}`);
+    const response = await fetch(url, { headers: this.headers });
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`API request failed with status ${response.status}: ${errorData}`);
+    }
+    const jsonData = await response.json();
+    const text = jsonData?.result?.data?.tweetResult?.result?.legacy?.full_text;
+    return text || null;
   }
 
   async getUserTweets(userId, totalExpectedTweets) {
+    if (!this.baseUrl) {
+      throw new Error(
+        "RAPIDAPI_URL is not configured. Set RAPIDAPI_URL and RAPIDAPI_KEY in your .env to use RapidAPI endpoints."
+      );
+    }
     try {
       let count = 0;
       const limit = 20;
@@ -272,6 +268,11 @@ class TwitterCrawlAPI {
   }
 
   async searchTweets(username, totalExpectedTweets) {
+    if (!this.baseUrl) {
+      throw new Error(
+        "RAPIDAPI_URL is not configured. Set RAPIDAPI_URL and RAPIDAPI_KEY in your .env to use RapidAPI endpoints."
+      );
+    }
     try {
       let allTweets = [];
       let bottomCursor = null;
@@ -351,9 +352,9 @@ class TwitterCrawlAPI {
       return tweetData.text;
     } catch (error) {
       console.error("Error scraping tweet:", error);
+      return null;
     } finally {
       await browser.close();
-      return null;
     }
   }
 }

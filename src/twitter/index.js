@@ -36,4 +36,4 @@ const cleanup = async () => {
 process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
 
-pipeline.run().catch(() => process.exit(1));
+pipeline.run(username).catch(() => process.exit(1));
