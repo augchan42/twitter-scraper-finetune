@@ -9,8 +9,8 @@ import Logger from "./Logger.js";
 import DataOrganizer from "./DataOrganizer.js";
 import TweetFilter from "./TweetFilter.js";
 
-// agent-twitter-client
-import { Scraper, SearchMode } from "agent-twitter-client";
+// goat-x
+import { Scraper, SearchMode } from "goat-x";
 
 // Puppeteer
 import puppeteer from "puppeteer-extra";
@@ -29,11 +29,11 @@ class TwitterPipeline {
     this.paths = this.dataOrganizer.getPaths();
     this.tweetFilter = new TweetFilter();
 
-    // Update cookie path to be in top-level cookies directory
+    // Update cookie path to be in top-level cookies directory (Netscape format)
     this.paths.cookies = path.join(
       process.cwd(),
       'cookies',
-      `${process.env.TWITTER_USERNAME}_cookies.json`
+      `${process.env.TWITTER_USERNAME}_cookies.txt`
     );
 
     // Enhanced configuration with fallback handling
@@ -99,13 +99,71 @@ class TwitterPipeline {
     }
   }
 
+  async loadNetscapeCookies() {
+    try {
+      const cookieFileExists = await fs.access(this.paths.cookies).then(() => true).catch(() => false);
+
+      if (!cookieFileExists) {
+        Logger.warn(`Cookie file not found: ${this.paths.cookies}`);
+        return [];
+      }
+
+      const netscapeCookies = await fs.readFile(this.paths.cookies, 'utf-8');
+      const lines = netscapeCookies.split('\n');
+
+      const cookies = [];
+      for (const line of lines) {
+        if (line.startsWith('#') || !line.trim()) continue;
+
+        const parts = line.split('\t');
+        if (parts.length < 7) continue;
+
+        const [domain, , cookiePath, secure, expiration, name, value] = parts;
+
+        cookies.push({
+          name,
+          value,
+          domain: domain.startsWith('.') ? domain : domain,
+          path: cookiePath,
+          secure: secure === 'TRUE',
+          httpOnly: false,
+          expires: parseInt(expiration) > 0 ? parseInt(expiration) : undefined
+        });
+      }
+
+      return cookies;
+    } catch (error) {
+      Logger.warn(`Failed to load Netscape cookies: ${error.message}`);
+      return [];
+    }
+  }
+
   async setupFallbackPage(page) {
     await page.setViewport(this.config.fallback.viewport);
 
-    // Basic evasion only - maintain consistency
+    // Set realistic user agent
+    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+    // Enhanced stealth measures
     await page.evaluateOnNewDocument(() => {
       Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en'],
+      });
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      delete navigator.__proto__.webdriver;
     });
+
+    // Load and set cookies
+    const cookies = await this.loadNetscapeCookies();
+    if (cookies.length > 0) {
+      await page.setCookie(...cookies);
+      Logger.success(`Loaded ${cookies.length} authentication cookies`);
+    } else {
+      Logger.warn('No cookies loaded - authentication may fail');
+    }
   }
 
   async validateEnvironment() {
@@ -154,20 +212,14 @@ async saveCookies() {
 
   async initializeScraper() {
     Logger.startSpinner("Initializing Twitter scraper");
-    let retryCount = 0;
 
-    // Try loading cookies first
-    if (await this.loadCookies()) {
-      try {
-        if (await this.scraper.isLoggedIn()) {
-          Logger.success("✅ Successfully authenticated with saved cookies");
-          Logger.stopSpinner();
-          return true;
-        }
-      } catch (error) {
-        Logger.warn("Saved cookies are invalid, attempting fresh login");
-      }
-    }
+    // Skip goat-x authentication entirely - it's broken due to deprecated endpoints
+    // Will use Puppeteer fallback for all scraping
+    Logger.warn("⚠️  Skipping goat-x authentication (deprecated endpoints)");
+    Logger.warn("📌 Using Puppeteer-based scraping instead");
+    Logger.stopSpinner();
+
+    return false; // Force fallback mode
 
     // Verify all required credentials are present
     const username = process.env.TWITTER_USERNAME;
@@ -187,9 +239,13 @@ async saveCookies() {
         await this.randomDelay(5000, 10000);
 
         // Always use email in login attempt
+        Logger.info(`🔐 Attempting login for user: ${username}`);
+        Logger.info(`📧 Email provided: ${email ? 'Yes' : 'No'}`);
+
         await this.scraper.login(username, password, email);
 
         // Verify login success
+        Logger.info(`✔️  Login call completed, verifying session...`);
         const isLoggedIn = await this.scraper.isLoggedIn();
         if (isLoggedIn) {
           await this.saveCookies();
@@ -202,9 +258,9 @@ async saveCookies() {
 
       } catch (error) {
         retryCount++;
-        Logger.warn(
-          `⚠️  Authentication attempt ${retryCount} failed: ${error.message}`
-        );
+        Logger.error(`⚠️  Authentication attempt ${retryCount} failed:`);
+        Logger.error(`   Error message: ${error.message}`);
+        Logger.error(`   Error stack: ${error.stack?.split('\n')[0]}`);
 
         if (retryCount >= this.config.twitter.maxRetries) {
           Logger.stopSpinner(false);
@@ -383,31 +439,38 @@ async saveCookies() {
       await this.setupFallbackPage(page);
 
       try {
-        // Login with minimal interaction
-        await page.goto("https://twitter.com/login", {
-          waitUntil: "networkidle0",
+        // Skip login - use cookies instead and go directly to search
+        Logger.info("🌐 Navigating to X.com search with saved cookies...");
+
+        const searchUrl = `https://x.com/search?q=${encodeURIComponent(searchQuery)}&f=live`;
+        await page.goto(searchUrl, {
+          waitUntil: "networkidle2",
           timeout: 30000,
         });
 
-        await page.type(
-          'input[autocomplete="username"]',
-          process.env.TWITTER_USERNAME
-        );
-        await this.randomDelay(500, 1000);
-        await page.click('div[role="button"]:not([aria-label])');
-        await this.randomDelay(500, 1000);
-        await page.type('input[type="password"]', process.env.TWITTER_PASSWORD);
-        await this.randomDelay(500, 1000);
-        await page.click('div[role="button"][data-testid="LoginButton"]');
-        await page.waitForNavigation({ waitUntil: "networkidle0" });
+        // Verify we're logged in by checking if we were redirected to login
+        const currentUrl = page.url();
+        if (currentUrl.includes('/login') || currentUrl.includes('/flow/')) {
+          Logger.error("❌ Cookies expired or invalid - redirected to login page");
+          Logger.error(`   Please run: cp cookies/sixlinesapp_cookies.txt cookies/${process.env.TWITTER_USERNAME}_cookies.txt`);
+          throw new Error("Authentication cookies expired - please refresh cookies");
+        }
 
-        // Go directly to search
-        await page.goto(
-          `https://twitter.com/search?q=${encodeURIComponent(
-            searchQuery
-          )}&f=live`
-        );
-        await this.randomDelay(1000, 2000);
+        Logger.success(`✓ Successfully loaded search page: ${currentUrl}`);
+
+        // Wait for tweets to load
+        await this.randomDelay(2000, 3000);
+
+        // Debug: Check initial page state
+        const initialCheck = await page.evaluate(() => {
+          const articles = document.querySelectorAll('article[data-testid="tweet"]');
+          return {
+            articleCount: articles.length,
+            hasArticles: articles.length > 0,
+            firstArticleHTML: articles[0]?.outerHTML?.substring(0, 200)
+          };
+        });
+        Logger.info(`📊 Initial page check: Found ${initialCheck.articleCount} tweet articles`);
 
         let lastTweetCount = 0;
         let unchangedCount = 0;
@@ -416,48 +479,188 @@ async saveCookies() {
           unchangedCount < 3 &&
           Date.now() - sessionStartTime < this.config.fallback.sessionDuration
         ) {
-          await page.evaluate(() => {
-            window.scrollBy(0, 500);
-          });
+          try {
+            await page.evaluate(() => {
+              window.scrollBy(0, 500);
+            });
+          } catch (error) {
+            if (error.message.includes('detached')) {
+              Logger.warn('⚠️  Page detached during scroll, stopping collection');
+              break;
+            }
+            throw error;
+          }
 
           await this.randomDelay(1000, 2000);
 
-          const newTweets = await page.evaluate(() => {
+          let newTweets;
+          try {
+            newTweets = await page.evaluate(() => {
             const tweetElements = Array.from(
               document.querySelectorAll('article[data-testid="tweet"]')
             );
+
+            // Debug info
+            console.log(`Found ${tweetElements.length} tweet elements`);
+
+            // Helper function to parse count text (e.g., "1.2K" -> 1200)
+            const parseCount = (text) => {
+              if (!text) return 0;
+              text = text.trim().toLowerCase();
+              if (text === '') return 0;
+
+              const multipliers = { k: 1000, m: 1000000, b: 1000000000 };
+              const match = text.match(/^([\d.]+)([kmb]?)$/);
+
+              if (match) {
+                const num = parseFloat(match[1]);
+                const mult = multipliers[match[2]] || 1;
+                return Math.floor(num * mult);
+              }
+
+              return parseInt(text.replace(/,/g, '')) || 0;
+            };
+
             return tweetElements
               .map((tweet) => {
                 try {
+                  // Try multiple ways to get tweet ID
+                  const tweetId = tweet.getAttribute("data-tweet-id") ||
+                                 tweet.querySelector('a[href*="/status/"]')?.href?.match(/status\/(\d+)/)?.[1];
+
+                  const textElement = tweet.querySelector("div[lang]") ||
+                                     tweet.querySelector('[data-testid="tweetText"]');
+                  const text = textElement?.textContent || "";
+
+                  const timeElement = tweet.querySelector("time");
+                  const datetime = timeElement?.getAttribute("datetime");
+                  const timestamp = datetime ? new Date(datetime).getTime() : null;
+
+                  if (!tweetId) {
+                    console.log('Tweet missing ID, text preview:', text.substring(0, 50));
+                    return null;
+                  }
+
+                  // Extract engagement metrics
+                  const replyButton = tweet.querySelector('[data-testid="reply"]');
+                  const retweetButton = tweet.querySelector('[data-testid="retweet"]');
+                  const likeButton = tweet.querySelector('[data-testid="like"]');
+                  const viewsElement = tweet.querySelector('a[href*="/analytics"] span, [aria-label*="View"]');
+                  const bookmarkButton = tweet.querySelector('[data-testid="bookmark"]');
+
+                  // Get counts from aria-labels or visible text
+                  const getMetricCount = (button, metricName) => {
+                    if (!button) return 0;
+
+                    // Try aria-label first
+                    const ariaLabel = button.getAttribute('aria-label');
+                    if (ariaLabel) {
+                      const match = ariaLabel.match(/(\d+[\d,]*)/);
+                      if (match) return parseCount(match[1]);
+                    }
+
+                    // Try visible span text
+                    const span = button.querySelector('span[data-testid$="count"]');
+                    if (span?.textContent) {
+                      return parseCount(span.textContent);
+                    }
+
+                    return 0;
+                  };
+
+                  const replies = getMetricCount(replyButton, 'replies');
+                  const retweets = getMetricCount(retweetButton, 'retweets');
+                  const likes = getMetricCount(likeButton, 'likes');
+                  const bookmarks = getMetricCount(bookmarkButton, 'bookmarks');
+
+                  // Views are often in a different format
+                  let views = 0;
+                  if (viewsElement) {
+                    const viewText = viewsElement.textContent || viewsElement.getAttribute('aria-label');
+                    if (viewText) {
+                      const viewMatch = viewText.match(/(\d+[\d,\.]*[KMB]?)/i);
+                      if (viewMatch) {
+                        views = parseCount(viewMatch[1]);
+                      }
+                    }
+                  }
+
+                  // Extract user info
+                  const userLink = tweet.querySelector('a[role="link"][href^="/"]');
+                  const username = userLink?.href?.split('/')[3] || '';
+
+                  // Check if it's a retweet or reply
+                  const isRetweet = !!tweet.querySelector('[data-testid="socialContext"]')?.textContent?.includes('reposted');
+                  const isReply = !!tweet.querySelector('[data-testid="socialContext"]')?.textContent?.includes('Replying to');
+
+                  // Extract media
+                  const photos = Array.from(tweet.querySelectorAll('img[src*="media"]'))
+                    .map(img => img.src)
+                    .filter(src => src.includes('media'));
+
+                  const videos = Array.from(tweet.querySelectorAll('video[src]'))
+                    .map(vid => vid.src);
+
+                  // Extract hashtags
+                  const hashtags = Array.from(tweet.querySelectorAll('a[href*="/hashtag/"]'))
+                    .map(a => a.textContent);
+
+                  // Extract URLs
+                  const urls = Array.from(tweet.querySelectorAll('a[href^="http"]'))
+                    .map(a => a.href)
+                    .filter(url => !url.includes('twitter.com') && !url.includes('x.com'));
+
                   return {
-                    id: tweet.getAttribute("data-tweet-id"),
-                    text: tweet.querySelector("div[lang]")?.textContent || "",
-                    timestamp: tweet
-                      .querySelector("time")
-                      ?.getAttribute("datetime"),
-                    metrics: Array.from(
-                      tweet.querySelectorAll('span[data-testid$="count"]')
-                    ).map((m) => m.textContent),
+                    id: tweetId,
+                    text: text,
+                    timestamp: timestamp,
+                    username: username,
+                    replies: replies,
+                    retweets: retweets,
+                    likes: likes,
+                    views: views,
+                    bookmarks: bookmarks,
+                    isRetweet: isRetweet,
+                    isReply: isReply,
+                    photos: photos,
+                    videos: videos,
+                    hashtags: hashtags,
+                    urls: urls
                   };
                 } catch (e) {
+                  console.error('Error parsing tweet:', e.message);
                   return null;
                 }
               })
               .filter((t) => t && t.id);
           });
+          } catch (error) {
+            if (error.message.includes('detached')) {
+              Logger.warn('⚠️  Page detached during extraction, stopping collection');
+              break;
+            }
+            throw error;
+          }
+
+          if (!newTweets) newTweets = [];
+
+          Logger.info(`📝 Found ${newTweets.length} new tweets in this batch`);
 
           for (const tweet of newTweets) {
             if (!tweets.has(tweet.id)) {
               tweets.add(tweet);
               this.stats.fallbackCount++;
+              Logger.info(`  ✓ Added tweet ${tweet.id}: ${tweet.text?.substring(0, 50)}... [👁️ ${tweet.views || 0} | ❤️ ${tweet.likes || 0} | 🔁 ${tweet.retweets || 0} | 💬 ${tweet.replies || 0}]`);
             }
           }
 
           if (tweets.size === lastTweetCount) {
             unchangedCount++;
+            Logger.info(`⏸️  No new tweets (unchanged count: ${unchangedCount}/3)`);
           } else {
             unchangedCount = 0;
             lastTweetCount = tweets.size;
+            Logger.success(`📊 Total collected so far: ${tweets.size} tweets`);
           }
         }
       } catch (error) {
@@ -468,14 +671,30 @@ async saveCookies() {
 
     await this.cluster.task(fallbackTask);
     await this.cluster.queue({});
+    await this.cluster.idle();
+    await this.cluster.close();
 
+    Logger.success(`✅ Collected ${tweets.size} tweets via Puppeteer`);
     return Array.from(tweets);
   }
 
   async collectTweets(scraper) {
     try {
-      const profile = await scraper.getProfile(this.username);
-      const totalExpectedTweets = profile.tweetsCount;
+      // Check if scraper is actually initialized (not broken)
+      let profile;
+      let totalExpectedTweets = 0;
+
+      try {
+        profile = await scraper.getProfile(this.username);
+        totalExpectedTweets = profile.tweetsCount;
+      } catch (error) {
+        Logger.warn(`⚠️  Failed to get profile via API: ${error.message}`);
+        Logger.info("🔄 Falling back to Puppeteer for all scraping...");
+
+        // Use fallback collection directly
+        const fallbackTweets = await this.collectWithFallback(`from:${this.username}`);
+        return fallbackTweets.map(t => this.processTweetData(t)).filter(t => t);
+      }
 
       Logger.info(
         `📊 Found ${chalk.bold(
@@ -852,22 +1071,9 @@ async saveCookies() {
         Logger.success("🔒 Cleaned up fallback system");
       }
 
-      await this.saveProgress(null, null, this.stats.uniqueTweets, {
-        completed: true,
-        endTime: new Date().toISOString(),
-        fallbackUsed: this.stats.fallbackUsed,
-        fallbackCount: this.stats.fallbackCount,
-        rateLimitHits: this.stats.rateLimitHits,
-      });
-
       Logger.success("✨ Cleanup complete");
     } catch (error) {
       Logger.warn(`⚠️  Cleanup error: ${error.message}`);
-      await this.saveProgress(null, null, this.stats.uniqueTweets, {
-        completed: true,
-        endTime: new Date().toISOString(),
-        error: error.message,
-      });
     }
   }
 }

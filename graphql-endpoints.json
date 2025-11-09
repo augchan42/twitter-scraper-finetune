@@ -1,0 +1,82 @@
+[
+  {
+    "queryId": "xF6sXnKJfS2AOylzxRjf6A",
+    "operationName": "DataSaverMode",
+    "url": "https://x.com/i/api/graphql/xF6sXnKJfS2AOylzxRjf6A/DataSaverMode"
+  },
+  {
+    "queryId": "vrNCYudm0qsExOy_-N9Q1g",
+    "operationName": "HomeTimeline",
+    "url": "https://x.com/i/api/graphql/vrNCYudm0qsExOy_-N9Q1g/HomeTimeline"
+  },
+  {
+    "queryId": "AgGab7ZPUS32rv1PHMfd4Q",
+    "operationName": "PinnedTimelines",
+    "url": "https://x.com/i/api/graphql/AgGab7ZPUS32rv1PHMfd4Q/PinnedTimelines"
+  },
+  {
+    "queryId": "PFIxTk8owMoZgiMccP0r4g",
+    "operationName": "getAltTextPromptPreference",
+    "url": "https://x.com/i/api/graphql/PFIxTk8owMoZgiMccP0r4g/getAltTextPromptPreference"
+  },
+  {
+    "queryId": "jC5Kx2254yUfLVfIh5oUzA",
+    "operationName": "SidebarUserRecommendations",
+    "url": "https://x.com/i/api/graphql/jC5Kx2254yUfLVfIh5oUzA/SidebarUserRecommendations"
+  },
+  {
+    "queryId": "UFD9D7pipG78WFN0SJviDg",
+    "operationName": "useTotalAdCampaignsForUserQuery",
+    "url": "https://x.com/i/api/graphql/UFD9D7pipG78WFN0SJviDg/useTotalAdCampaignsForUserQuery"
+  },
+  {
+    "queryId": "Jm0Xa2s6HVvspSC2Xr0zEA",
+    "operationName": "useFetchProductSubscriptionsQuery",
+    "url": "https://x.com/i/api/graphql/Jm0Xa2s6HVvspSC2Xr0zEA/useFetchProductSubscriptionsQuery"
+  },
+  {
+    "queryId": "I3V_Tt32aTZdw7cBdKUJbg",
+    "operationName": "useStoryTopicQuery",
+    "url": "https://x.com/i/api/graphql/I3V_Tt32aTZdw7cBdKUJbg/useStoryTopicQuery"
+  },
+  {
+    "queryId": "mgxqSIeEvZjd_fr8ea4G-A",
+    "operationName": "ExploreSidebar",
+    "url": "https://x.com/i/api/graphql/mgxqSIeEvZjd_fr8ea4G-A/ExploreSidebar"
+  },
+  {
+    "queryId": "cUuRnmF2028ARztoNWgv9w",
+    "operationName": "useSubscriptionsPaymentFailureQuery",
+    "url": "https://x.com/i/api/graphql/cUuRnmF2028ARztoNWgv9w/useSubscriptionsPaymentFailureQuery"
+  },
+  {
+    "queryId": "7r8ibjHuK3MWUyzkzHNMYQ",
+    "operationName": "SearchTimeline",
+    "url": "https://x.com/i/api/graphql/7r8ibjHuK3MWUyzkzHNMYQ/SearchTimeline"
+  },
+  {
+    "queryId": "ces",
+    "operationName": "p2",
+    "url": "https://x.com/i/api/1.1/graphql/ces/p2"
+  },
+  {
+    "queryId": "ZHSN3WlvahPKVvUxVQbg1A",
+    "operationName": "UserByScreenName",
+    "url": "https://x.com/i/api/graphql/ZHSN3WlvahPKVvUxVQbg1A/UserByScreenName"
+  },
+  {
+    "queryId": "vqu78dKcEkW-UAYLw5rriA",
+    "operationName": "useFetchProfileSections_canViewExpandedProfileQuery",
+    "url": "https://x.com/i/api/graphql/vqu78dKcEkW-UAYLw5rriA/useFetchProfileSections_canViewExpandedProfileQuery"
+  },
+  {
+    "queryId": "mzoqrVGwk-YTSGME1dRfXQ",
+    "operationName": "ProfileSpotlightsQuery",
+    "url": "https://x.com/i/api/graphql/mzoqrVGwk-YTSGME1dRfXQ/ProfileSpotlightsQuery"
+  },
+  {
+    "queryId": "oRJs8SLCRNRbQzuZG93_oA",
+    "operationName": "UserTweets",
+    "url": "https://x.com/i/api/graphql/oRJs8SLCRNRbQzuZG93_oA/UserTweets"
+  }
+]

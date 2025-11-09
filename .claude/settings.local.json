@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "WebSearch",
+      "Bash(npm view:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run twitter:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm run build:*)",
+      "Bash(node test-simple.js:*)",
+      "Bash(node test-search.js:*)",
+      "Bash(node test-puppeteer-login.js:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
