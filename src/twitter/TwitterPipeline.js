@@ -440,6 +440,9 @@ async saveCookies() {
       await this.initializeFallback();
     }
 
+    // Extract target username from search query (e.g., "from:qdayanon" -> "qdayanon")
+    const targetUsername = searchQuery.match(/from:(\w+)/)?.[1] || this.username;
+
     const tweetMap = new Map(); // Store tweets by ID to prevent duplicates
     let sessionStartTime = Date.now();
 
@@ -503,7 +506,7 @@ async saveCookies() {
 
           let newTweets;
           try {
-            newTweets = await page.evaluate(() => {
+            newTweets = await page.evaluate((targetUsername) => {
             const tweetElements = Array.from(
               document.querySelectorAll('article[data-testid="tweet"]')
             );
@@ -618,11 +621,14 @@ async saveCookies() {
                     .map(a => a.href)
                     .filter(url => !url.includes('twitter.com') && !url.includes('x.com'));
 
+                  // Use extracted username or fall back to target username
+                  const finalUsername = username || targetUsername;
+
                   return {
                     id: tweetId,
                     text: text,
                     timestamp: timestamp,
-                    username: username,
+                    username: finalUsername,
                     replies: replies,
                     retweets: retweets,
                     likes: likes,
@@ -633,7 +639,8 @@ async saveCookies() {
                     photos: photos,
                     videos: videos,
                     hashtags: hashtags,
-                    urls: urls
+                    urls: urls,
+                    permanentUrl: finalUsername ? `https://x.com/${finalUsername}/status/${tweetId}` : null
                   };
                 } catch (e) {
                   console.error('Error parsing tweet:', e.message);
@@ -641,7 +648,7 @@ async saveCookies() {
                 }
               })
               .filter((t) => t && t.id);
-          });
+          }, targetUsername);
           } catch (error) {
             if (error.message.includes('detached')) {
               Logger.warn('⚠️  Page detached during extraction, stopping collection');
@@ -657,7 +664,6 @@ async saveCookies() {
           for (const tweet of newTweets) {
             if (!tweetMap.has(tweet.id)) {
               tweetMap.set(tweet.id, tweet);
-              this.stats.fallbackCount++;
               Logger.info(`  ✓ Added tweet ${tweet.id}: ${tweet.text?.substring(0, 50)}... [👁️ ${tweet.views || 0} | ❤️ ${tweet.likes || 0} | 🔁 ${tweet.retweets || 0} | 💬 ${tweet.replies || 0}]`);
             }
           }
@@ -701,8 +707,11 @@ async saveCookies() {
         Logger.info("🔄 Falling back to Puppeteer for all scraping...");
 
         // Use fallback collection directly
+        this.stats.fallbackUsed = true;
         const fallbackTweets = await this.collectWithFallback(`from:${this.username}`);
-        return fallbackTweets.map(t => this.processTweetData(t)).filter(t => t);
+        const processedTweets = fallbackTweets.map(t => this.processTweetData(t)).filter(t => t);
+        this.stats.fallbackCount += processedTweets.length;
+        return processedTweets;
       }
 
       Logger.info(
@@ -764,6 +773,7 @@ async saveCookies() {
             this.stats.rateLimitHits >= this.config.twitter.rateLimitThreshold
           ) {
             Logger.info("Switching to fallback collection...");
+            this.stats.fallbackUsed = true; // Mark before collecting
             const fallbackTweets = await this.collectWithFallback(
               `from:${this.username}`
             );
@@ -773,7 +783,7 @@ async saveCookies() {
                 const processedTweet = this.processTweetData(tweet);
                 if (processedTweet) {
                   allTweets.set(tweet.id, processedTweet);
-                  this.stats.fallbackUsed = true;
+                  this.stats.fallbackCount++;
                 }
               }
             });
@@ -788,6 +798,7 @@ async saveCookies() {
         this.config.fallback.enabled
       ) {
         Logger.info("\n🔍 Collecting additional tweets via fallback...");
+        this.stats.fallbackUsed = true; // Mark before collecting
 
         try {
           const fallbackTweets = await this.collectWithFallback(
@@ -801,7 +812,7 @@ async saveCookies() {
               if (processedTweet) {
                 allTweets.set(tweet.id, processedTweet);
                 newTweetsCount++;
-                this.stats.fallbackUsed = true;
+                this.stats.fallbackCount++;
               }
             }
           });
