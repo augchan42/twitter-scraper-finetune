@@ -29,11 +29,17 @@ class TwitterPipeline {
     this.paths = this.dataOrganizer.getPaths();
     this.tweetFilter = new TweetFilter();
 
-    // Update cookie path to be in top-level cookies directory (Netscape format)
-    this.paths.cookies = path.join(
+    // Separate cookie paths for different formats
+    this.paths.netscapeCookies = path.join(
       process.cwd(),
       'cookies',
       `${process.env.TWITTER_USERNAME}_cookies.txt`
+    );
+    // JSON cookies for API scraper (if used)
+    this.paths.cookies = path.join(
+      process.cwd(),
+      'cookies',
+      `${process.env.TWITTER_USERNAME}_cookies.json`
     );
 
     // Enhanced configuration with fallback handling
@@ -101,14 +107,14 @@ class TwitterPipeline {
 
   async loadNetscapeCookies() {
     try {
-      const cookieFileExists = await fs.access(this.paths.cookies).then(() => true).catch(() => false);
+      const cookieFileExists = await fs.access(this.paths.netscapeCookies).then(() => true).catch(() => false);
 
       if (!cookieFileExists) {
-        Logger.warn(`Cookie file not found: ${this.paths.cookies}`);
+        Logger.warn(`Cookie file not found: ${this.paths.netscapeCookies}`);
         return [];
       }
 
-      const netscapeCookies = await fs.readFile(this.paths.cookies, 'utf-8');
+      const netscapeCookies = await fs.readFile(this.paths.netscapeCookies, 'utf-8');
       const lines = netscapeCookies.split('\n');
 
       const cookies = [];
@@ -185,7 +191,9 @@ class TwitterPipeline {
 
 async loadCookies() {
     try {
-      if (await fs.access(this.paths.cookies).catch(() => false)) {
+      const cookieFileExists = await fs.access(this.paths.cookies).then(() => true).catch(() => false);
+
+      if (cookieFileExists) {
         const cookiesData = await fs.readFile(this.paths.cookies, 'utf-8');
         const cookies = JSON.parse(cookiesData);
         await this.scraper.setCookies(cookies);
@@ -432,7 +440,7 @@ async saveCookies() {
       await this.initializeFallback();
     }
 
-    const tweets = new Set();
+    const tweetMap = new Map(); // Store tweets by ID to prevent duplicates
     let sessionStartTime = Date.now();
 
     const fallbackTask = async ({ page }) => {
@@ -647,20 +655,20 @@ async saveCookies() {
           Logger.info(`📝 Found ${newTweets.length} new tweets in this batch`);
 
           for (const tweet of newTweets) {
-            if (!tweets.has(tweet.id)) {
-              tweets.add(tweet);
+            if (!tweetMap.has(tweet.id)) {
+              tweetMap.set(tweet.id, tweet);
               this.stats.fallbackCount++;
               Logger.info(`  ✓ Added tweet ${tweet.id}: ${tweet.text?.substring(0, 50)}... [👁️ ${tweet.views || 0} | ❤️ ${tweet.likes || 0} | 🔁 ${tweet.retweets || 0} | 💬 ${tweet.replies || 0}]`);
             }
           }
 
-          if (tweets.size === lastTweetCount) {
+          if (tweetMap.size === lastTweetCount) {
             unchangedCount++;
             Logger.info(`⏸️  No new tweets (unchanged count: ${unchangedCount}/3)`);
           } else {
             unchangedCount = 0;
-            lastTweetCount = tweets.size;
-            Logger.success(`📊 Total collected so far: ${tweets.size} tweets`);
+            lastTweetCount = tweetMap.size;
+            Logger.success(`📊 Total collected so far: ${tweetMap.size} tweets`);
           }
         }
       } catch (error) {
@@ -673,9 +681,10 @@ async saveCookies() {
     await this.cluster.queue({});
     await this.cluster.idle();
     await this.cluster.close();
+    this.cluster = null; // Reset to allow subsequent fallback attempts
 
-    Logger.success(`✅ Collected ${tweets.size} tweets via Puppeteer`);
-    return Array.from(tweets);
+    Logger.success(`✅ Collected ${tweetMap.size} tweets via Puppeteer`);
+    return Array.from(tweetMap.values());
   }
 
   async collectTweets(scraper) {
@@ -899,11 +908,6 @@ async saveCookies() {
       // Calculate final statistics
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       const tweetsPerMinute = (allTweets.length / (duration / 60)).toFixed(1);
-      const successRate = (
-        (allTweets.length /
-          (this.stats.requestCount + this.stats.fallbackCount)) *
-        100
-      ).toFixed(1);
 
       // Display final results
       Logger.stats("📈 Collection Results", {
@@ -914,7 +918,6 @@ async saveCookies() {
         "Date Range": `${analytics.timeRange.start} to ${analytics.timeRange.end}`,
         Runtime: `${duration} seconds`,
         "Collection Rate": `${tweetsPerMinute} tweets/minute`,
-        "Success Rate": `${successRate}%`,
         "Rate Limit Hits": this.stats.rateLimitHits.toLocaleString(),
         "Fallback Collections": this.stats.fallbackCount.toLocaleString(),
         "Storage Location": chalk.gray(this.dataOrganizer.baseDir),
