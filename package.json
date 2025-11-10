@@ -7,6 +7,7 @@
     "generate-virtuals": "node src/virtuals/GenerateCharacter.js",
     "twitter": "node src/twitter/index.js",
     "blog": "node src/blog/scrapeBlogs.js",
+    "warring-states": "tsx scripts/crawler.ts",
     "character": "node src/character/GenerateCharacter.js",
     "finetune": "node ./scripts/finetune.js",
     "finetune:test": "node ./scripts/finetune.js --test"
@@ -35,5 +36,8 @@
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "ua-parser-js": "^2.0.0-rc.1",
     "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6"
   }
 }

@@ -55,6 +55,16 @@ Scrape articles from blogs/websites for fine-tuning training data.
 
 **Note**: The scraper works best with publicly accessible articles. Sites behind authentication (like Medium paywalls) may not work.
 
+### Warring States Collection
+
+Scrape story content from the Warring States Wix site and convert to markdown.
+
+```bash
+npm run warring-states
+```
+
+Output will be saved to `knowledge/warringstates/` directory as markdown files.
+
 ### Generate Character
 ```bash
 npm run character -- username
