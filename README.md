@@ -37,9 +37,23 @@ npm run twitter -- username
 Example: `npm run twitter -- pmarca`
 
 ### Blog Collection
-```bash
-npm run blog
-```
+
+Scrape articles from blogs/websites for fine-tuning training data.
+
+1. Edit `src/blog/blogList.txt` and add URLs (one per line) to the articles you want to scrape:
+   ```
+   https://example.com/article1.html
+   https://example.com/article2.html
+   ```
+
+2. Run the scraper:
+   ```bash
+   npm run blog
+   ```
+
+3. Output will be saved to `src/blog/articles.jsonl`
+
+**Note**: The scraper works best with publicly accessible articles. Sites behind authentication (like Medium paywalls) may not work.
 
 ### Generate Character
 ```bash
