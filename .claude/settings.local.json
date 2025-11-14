@@ -10,7 +10,10 @@
       "Bash(npm run build:*)",
       "Bash(node test-simple.js:*)",
       "Bash(node test-search.js:*)",
-      "Bash(node test-puppeteer-login.js:*)"
+      "Bash(node test-puppeteer-login.js:*)",
+      "Bash(node scripts/fetch-single-tweet.js:*)",
+      "Bash(node scripts/fetch-tweet-with-pipeline.js:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

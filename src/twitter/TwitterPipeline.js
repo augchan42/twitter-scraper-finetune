@@ -550,7 +550,35 @@ async saveCookies() {
 
                   const textElement = tweet.querySelector("div[lang]") ||
                                      tweet.querySelector('[data-testid="tweetText"]');
-                  const text = textElement?.textContent || "";
+
+                  // Get all text nodes to capture full tweet including any truncated content
+                  let text = "";
+                  if (textElement) {
+                    // Try to get the complete text by looking at all descendant text nodes
+                    const getAllText = (element) => {
+                      let result = "";
+                      const walker = document.createTreeWalker(
+                        element,
+                        NodeFilter.SHOW_TEXT,
+                        {
+                          acceptNode: (node) => {
+                            // Skip "Show more" link text
+                            if (node.parentElement?.getAttribute('data-testid') === 'tweet-text-show-more-link') {
+                              return NodeFilter.FILTER_REJECT;
+                            }
+                            return NodeFilter.FILTER_ACCEPT;
+                          }
+                        }
+                      );
+
+                      while (walker.nextNode()) {
+                        result += walker.currentNode.textContent;
+                      }
+                      return result;
+                    };
+
+                    text = getAllText(textElement);
+                  }
 
                   const timeElement = tweet.querySelector("time");
                   const datetime = timeElement?.getAttribute("datetime");
